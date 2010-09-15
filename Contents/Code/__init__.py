@@ -11,7 +11,7 @@ def Start():
   
 class PlexMovieAgent(Agent.Movies):
   name = 'Plex'
-  languages = [Locale.Language.English]
+  languages = [Locale.Language.English, 'fr']
   
   def httpRequest(self, url):
     time.sleep(1)
@@ -33,12 +33,15 @@ class PlexMovieAgent(Agent.Movies):
   
   def search(self, results, media, lang):
     
-    # See if we're being passed the ID.
-    #if media.guid:
-      # Add a result for the id found in the passed in guid hint (likely from an .nfo file)      
-      #imdbSearchHTML = str(self.httpRequest(IMDB_MOVIE_PAGE % media.guid))
-      #self.scrapeIMDB_html(results, media, lang, imdbSearchHTML, scoreOverride=True, useScore=100)
-    #pass
+    # See if we're being passed a raw ID.
+    if media.guid or re.match('t*[0-9]{7}', media.name):
+      theGuid = media.guid or media.name
+      if not theGuid.startswith('tt'):
+        theGuid = 'tt' + theGuid
+      
+      # Add a result for the id found in the passed in guid hint.
+      (title, year) = self.findById(theGuid)
+      results.Append(MetadataSearchResult(id=theGuid, name=title, year=year, lang=lang, score=100))
           
     if media.year:
       searchYear = ' (' + str(media.year) + ')'
@@ -203,41 +206,74 @@ class PlexMovieAgent(Agent.Movies):
     m = re.search('(tt[0-9]+)', metadata.guid)
     if m:
       id = m.groups(1)[0]
-      
-      jsonObj = JSON.ObjectFromURL(GOOGLE_JSON_URL % id)
-      if jsonObj['responseData'] != None:
-        jsonObj = jsonObj['responseData']['results']
-        
-      (title, year) = self.parseTitle(jsonObj[0]['titleNoFormatting'])
+      (title, year) = self.findById(id)
       metadata.year = year
 
-    #metadata.studio = info_dict["Company"].find('a').text.strip()
-    #metadata.rating = float(self.el_text(page, '//div[@class="starbar-meta"]/b').split('/')[0])
-    #metadata.duration = int(info_dict['Runtime'].text.strip().split()[0]) * 60 * 1000
-    #metadata.tagline = t[i].text.strip()
-    #metadata.summary = info_dict['Plot'].text.strip(' |')
-    #metadata.trivia = ""
-    #metadata.quotes = ""
-    #metadata.content_rating_age = 0
-    #metadata.originally_available_at = Datetime.ParseDate(info_dict["Release Date"].text.strip().split('(')[0]).date()
-    #metadata.content_rating = certs['USA']
-    #metadata.genres.add(genre)
-    #metadata.tags.add(tag)
-    #metadata.directors.add(director.text)
-    #metadata.writers.add(writer.text)
-    
-    #metadata.roles.clear()
-    #for member in cast:
-    #    role = metadata.roles.new()
-    #    role.role = character_name
-    #    role.photo = headshot_url
-    #     role.actor = actor_name
+    # Hit our repository.
+    guid = re.findall('tt([0-9]+)', metadata.guid)[0]
+    url = 'http://thetvdb.plexapp.com/movies/%s/%s.xml' % (guid[-2:], guid)
+
+    try:
+      movie = XML.ElementFromURL(url)
+
+      # Runtime.
+      if int(movie.get('runtime')) > 0:
+        metadata.duration = int(movie.get('runtime')) * 60 * 1000
+
+      # Genres.
+      metadata.genres.clear()
+      for genre in movie.xpath('genre'):
+        if genre.get('lang') in ('en', lang):
+          metadata.genres.add(genre.get('genre'))
+
+      # Directors.
+      metadata.directors.clear()
+      for director in movie.xpath('director'):
+        metadata.directors.add(director.get('name'))
+        
+      # Writers.
+      metadata.writers.clear()
+      for writer in movie.xpath('writer'):
+        metadata.writers.add(writer.get('name'))
+        
+      # Actors.
+      metadata.roles.clear()
+      for movie_role in movie.xpath('actor'):
+        role = metadata.roles.new()
+        if movie_role.get('role'):
+          role.role = movie_role.get('role')
+        #role.photo = headshot_url
+        role.actor = movie_role.get('name')
+        print role.role, role.actor
           
-    # Poster.
-    #data = self.httpRequest(path)
-    #if name not in metadata.posters:
-    #  metadata.posters[name] = Proxy.Media(data)
-  
+      # Studio
+      if movie.get('company'):
+        metadata.studio = movie.get('company')
+        
+      # Tagline.
+      if len(movie.get('tagline')) > 0:
+        metadata.tagline = movie.get('tagline')
+        
+      # Content rating.
+      if movie.get('content_rating'):
+        metadata.content_rating = movie.get('content_rating')
+     
+      # Release date.
+      if len(movie.get('originally_available_at')) > 0:
+        metadata.originally_available_at = Datetime.ParseDate(movie.get('originally_available_at')).date()
+        print "RELEASE", metadata.originally_available_at
+      
+    except:
+      print "Error obtaining Plex movie data for", guid
+
+  def findById(self, id):
+    jsonObj = JSON.ObjectFromURL(GOOGLE_JSON_URL % id)
+    if jsonObj['responseData'] != None:
+      jsonObj = jsonObj['responseData']['results']
+      
+    (title, year) = self.parseTitle(jsonObj[0]['titleNoFormatting'])
+    return (title, year)
+
   def parseTitle(self, title):
     # Parse out title, year, and extra.
     titleRx = '(.*) \(([0-9]+)(/.*)?\).*'
