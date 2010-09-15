@@ -11,7 +11,7 @@ def Start():
   
 class PlexMovieAgent(Agent.Movies):
   name = 'Plex'
-  languages = [Locale.Language.English, 'fr']
+  languages = [Locale.Language.English, 'sv', 'fr', 'es', 'nl', 'de', 'it']
   
   def httpRequest(self, url):
     time.sleep(1)
@@ -244,7 +244,6 @@ class PlexMovieAgent(Agent.Movies):
           role.role = movie_role.get('role')
         #role.photo = headshot_url
         role.actor = movie_role.get('name')
-        print role.role, role.actor
           
       # Studio
       if movie.get('company'):
