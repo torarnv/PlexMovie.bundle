@@ -250,7 +250,6 @@ class PlexMovieAgent(Agent.Movies):
       # Release date.
       if len(movie.get('originally_available_at')) > 0:
         metadata.originally_available_at = Datetime.ParseDate(movie.get('originally_available_at')).date()
-        print "RELEASE", metadata.originally_available_at
       
     except:
       print "Error obtaining Plex movie data for", guid
