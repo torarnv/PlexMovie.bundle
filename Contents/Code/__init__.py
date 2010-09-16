@@ -13,23 +13,12 @@ class PlexMovieAgent(Agent.Movies):
   name = 'Plex'
   languages = [Locale.Language.English, 'sv', 'fr', 'es', 'nl', 'de', 'it']
   
-  def httpRequest(self, url):
-    time.sleep(1)
-    res = None
-    for i in range(5):
-      try: 
-        res = HTTP.Request(url, headers = {'User-agent': UserAgent})
-      except: 
-        Log("Error hitting HTTP url:", url)
-        time.sleep(1)
-        
+  def getGoogleResult(self, url):
+    res = JSON.ObjectFromURL(url)
+    if res['responseStatus'] != 200:
+      res = JSON.ObjectFromURL(url, cacheTime=0)
+    time.sleep(0.5)
     return res
-    
-  def HTMLElementFromURLWithRetries(self, url):
-    res = self.httpRequest(url)
-    if res:
-      return HTML.ElementFromString(res)
-    return None
   
   def search(self, results, media, lang):
     
@@ -58,7 +47,8 @@ class PlexMovieAgent(Agent.Movies):
     idMap = {}
     
     for s in [GOOGLE_JSON_QUOTES, GOOGLE_JSON_NOQUOTES, GOOGLE_JSON_NOSITE, BING_JSON]:
-      if s == GOOGLE_JSON_QUOTES and (media.name.count(' ') == 0 or media.name.count('&') > 0 or media.name.count(' and ') > 0): # no reason to run this test, plus it screwed up some searches
+      if s == GOOGLE_JSON_QUOTES and (media.name.count(' ') == 0 or media.name.count('&') > 0 or media.name.count(' and ') > 0):
+        # no reason to run this test, plus it screwed up some searches
         continue 
         
       subsequentSearchPenalty += 1
@@ -78,7 +68,7 @@ class PlexMovieAgent(Agent.Movies):
               urlKey = 'Url'
               titleKey = 'Title'
           elif s.count('googleapis.com') > 0:
-            jsonObj = JSON.ObjectFromURL(s)
+            jsonObj = self.getGoogleResult(s)
             if jsonObj['responseData'] != None:
               jsonObj = jsonObj['responseData']['results']
               if len(jsonObj) > 0:
@@ -266,7 +256,7 @@ class PlexMovieAgent(Agent.Movies):
       print "Error obtaining Plex movie data for", guid
 
   def findById(self, id):
-    jsonObj = JSON.ObjectFromURL(GOOGLE_JSON_URL % id)
+    jsonObj = self.getGoogleResult(GOOGLE_JSON_URL % id)
     if jsonObj['responseData'] != None:
       jsonObj = jsonObj['responseData']['results']
       
