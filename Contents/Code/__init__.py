@@ -91,7 +91,7 @@ class PlexMovieAgent(Agent.Movies):
             imdbName, imdbYear = self.parseTitle(title)
             if not imdbName:
               # Doesn't match, let's skip it.
-              Log("Skipping strange title: " + title)
+              Log("Skipping strange title: " + title + " with URL " + url)
               continue
             else:
               Log("Using [%s] derived from [%s]" % (imdbName, title))
@@ -249,7 +249,12 @@ class PlexMovieAgent(Agent.Movies):
      
       # Release date.
       if len(movie.get('originally_available_at')) > 0:
-        metadata.originally_available_at = Datetime.ParseDate(movie.get('originally_available_at')).date()
+        elements = movie.get('originally_available_at').split('-')
+        if len(elements) >= 1 and len(elements[0]) == 4:
+          metadata.year = int(elements[0])
+
+        if len(elements) == 3:
+          metadata.originally_available_at = Datetime.ParseDate(movie.get('originally_available_at')).date()
       
     except:
       print "Error obtaining Plex movie data for", guid
@@ -268,14 +273,23 @@ class PlexMovieAgent(Agent.Movies):
     m = re.match(titleRx, title)
     if m:
       # A bit more processing for the name.
-      imdbName = m.groups(1)[0]
-      imdbName = re.sub('^[iI][mM][dD][bB][ ]*:[ ]*', '', imdbName)
-      imdbName = HTML.ElementFromString(imdbName).text
-      if imdbName[0] == '"' and imdbName[-1] == '"':
-        imdbName = imdbName[1:-1]
-      
+      imdbName = self.cleanupName(m.groups(1)[0])
       imdbYear = int(m.groups(1)[1])
       return (imdbName, imdbYear)
+      
+    longTitleRx = '(.*\.\.\.)'
+    m = re.match(longTitleRx, title)
+    if m:
+      imdbName = self.cleanupName(m.groups(1)[0])
+      return (imdbName, None)
     
     return (None, None)
+    
+  def cleanupName(self, s):
+    imdbName = re.sub('^[iI][mM][dD][bB][ ]*:[ ]*', '', s)
+    imdbName = HTML.ElementFromString(imdbName).text
+    if imdbName[0] == '"' and imdbName[-1] == '"':
+      imdbName = imdbName[1:-1]
+    return imdbName
+    
     
