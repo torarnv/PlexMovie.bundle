@@ -10,7 +10,7 @@ def Start():
   HTTP.CacheTime = CACHE_1DAY
   
 class PlexMovieAgent(Agent.Movies):
-  name = 'Plex'
+  name = 'Freebase'
   languages = [Locale.Language.English, 'sv', 'fr', 'es', 'nl', 'de', 'it']
   
   def getGoogleResult(self, url):
