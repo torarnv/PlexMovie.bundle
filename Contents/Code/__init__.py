@@ -8,7 +8,7 @@ BING_JSON_URL   = 'http://api.bing.net/json.aspx?AppId=879000C53DA17EA8DB4CD1B10
 FREEBASE_URL    = 'http://freebase.plexapp.com'
 
 def Start():
-  HTTP.CacheTime = CACHE_1DAY
+  HTTP.CacheTime = CACHE_1HOUR * 4
   
 class PlexMovieAgent(Agent.Movies):
   name = 'Freebase'
@@ -213,9 +213,23 @@ class PlexMovieAgent(Agent.Movies):
 
       # Genres.
       metadata.genres.clear()
+      genreMap = {}
+      
       for genre in movie.xpath('genre'):
-        if genre.get('lang') in ('en', lang):
-          metadata.genres.add(genre.get('genre'))
+        id = genre.get('id')
+        genreLang = genre.get('lang')
+        genreName = genre.get('genre')
+        
+        if not genreMap.has_key(id) and genreLang in ('en', lang):
+          genreMap[id] = [genreLang, genreName]
+          
+        elif genreMap.has_key(id) and genreLang == lang:
+          genreMap[id] = [genreLang, genreName]
+        
+      keys = genreMap.keys()
+      keys.sort()
+      for id in keys:
+        metadata.genres.add(genreMap[id][1])
 
       # Directors.
       metadata.directors.clear()
