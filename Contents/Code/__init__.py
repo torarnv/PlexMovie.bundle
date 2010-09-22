@@ -5,7 +5,7 @@ import datetime, re, time, unicodedata
 #
 GOOGLE_JSON_URL = 'http://ajax.googleapis.com/ajax/services/search/web?v=1.0&rsz=large&q=%s'   
 BING_JSON_URL   = 'http://api.bing.net/json.aspx?AppId=879000C53DA17EA8DB4CD1B103C00243FD0EFEE8&Version=2.2&Query=%s&Sources=web&Web.Count=8&JsonType=raw'
-FREEBASE_URL    = 'http://freebase.plexapp.com:27638'
+FREEBASE_URL    = 'http://freebase.plexapp.com'
 
 def Start():
   HTTP.CacheTime = CACHE_1DAY
