@@ -5,6 +5,7 @@ import datetime, re, time, unicodedata
 #
 GOOGLE_JSON_URL = 'http://ajax.googleapis.com/ajax/services/search/web?v=1.0&rsz=large&q=%s'   
 BING_JSON_URL   = 'http://api.bing.net/json.aspx?AppId=879000C53DA17EA8DB4CD1B103C00243FD0EFEE8&Version=2.2&Query=%s&Sources=web&Web.Count=8&JsonType=raw'
+FREEBASE_URL    = 'http://freebase.plexapp.com:27638'
 
 def Start():
   HTTP.CacheTime = CACHE_1DAY
@@ -201,7 +202,7 @@ class PlexMovieAgent(Agent.Movies):
 
     # Hit our repository.
     guid = re.findall('tt([0-9]+)', metadata.guid)[0]
-    url = 'http://thetvdb.plexapp.com/movies/%s/%s.xml' % (guid[-2:], guid)
+    url = '%s/movies/%s/%s.xml' % (FREEBASE_URL, guid[-2:], guid)
 
     try:
       movie = XML.ElementFromURL(url)
