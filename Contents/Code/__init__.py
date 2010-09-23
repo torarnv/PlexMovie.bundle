@@ -278,9 +278,14 @@ class PlexMovieAgent(Agent.Movies):
     jsonObj = self.getGoogleResult(GOOGLE_JSON_URL % id)
     if jsonObj['responseData'] != None:
       jsonObj = jsonObj['responseData']['results']
-      
-    (title, year) = self.parseTitle(jsonObj[0]['titleNoFormatting'])
-    return (title, year)
+    
+    try:  
+      (title, year) = self.parseTitle(jsonObj[0]['titleNoFormatting'])
+      return (title, year)
+    except:
+      pass
+    
+    return (None, None)
 
   def parseTitle(self, title):
     # Parse out title, year, and extra.
