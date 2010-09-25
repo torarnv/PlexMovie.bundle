@@ -31,7 +31,8 @@ class PlexMovieAgent(Agent.Movies):
       
       # Add a result for the id found in the passed in guid hint.
       (title, year) = self.findById(theGuid)
-      results.Append(MetadataSearchResult(id=theGuid, name=title, year=year, lang=lang, score=100))
+      if title is not None:
+        results.Append(MetadataSearchResult(id=theGuid, name=title, year=year, lang=lang, score=100))
           
     if media.year:
       searchYear = ' (' + str(media.year) + ')'
