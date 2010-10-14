@@ -191,8 +191,9 @@ class PlexMovieAgent(Agent.Movies):
       
   def update(self, metadata, media, lang):
 
-    # Set the title.
-    metadata.title = media.title
+    # Set the title. FIXME, this won't work after a queued restart.
+    if media:
+      metadata.title = media.title
 
     # FIXME, this is dumb, we already know the title.
     m = re.search('(tt[0-9]+)', metadata.guid)
