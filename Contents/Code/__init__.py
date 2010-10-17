@@ -47,6 +47,7 @@ class PlexMovieAgent(Agent.Movies):
     
     subsequentSearchPenalty = 0
     idMap = {}
+    bestNameMap = {}
     
     for s in [GOOGLE_JSON_QUOTES, GOOGLE_JSON_NOQUOTES, GOOGLE_JSON_NOSITE, BING_JSON]:
       if s == GOOGLE_JSON_QUOTES and (media.name.count(' ') == 0 or media.name.count('&') > 0 or media.name.count(' and ') > 0):
@@ -124,6 +125,12 @@ class PlexMovieAgent(Agent.Movies):
                 # Penalizing for abnormal tt link.
                 scorePenalty += 10
               try:
+                
+                # Keep the closest name around.
+                distance = Util.LevenshteinDistance(media.name, imdbName)
+                if not bestNameMap.has_key(id) or distance < bestNameMap[id]:
+                  bestNameMap[id] = imdbName
+                
                 # Don't process for the same ID more than once.
                 if idMap.has_key(id):
                   continue
@@ -188,6 +195,10 @@ class PlexMovieAgent(Agent.Movies):
         
     for dupe in toWhack:
       results.Remove(dupe)
+
+    # Make sure we're using the closest names.
+    for result in results:
+      result.name = bestNameMap[result.id]
       
   def update(self, metadata, media, lang):
 
