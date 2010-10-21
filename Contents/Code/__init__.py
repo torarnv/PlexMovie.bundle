@@ -4,7 +4,6 @@ import datetime, re, time, unicodedata
 # param info here: http://code.google.com/apis/ajaxsearch/documentation/reference.html
 #
 GOOGLE_JSON_URL = 'http://ajax.googleapis.com/ajax/services/search/web?v=1.0&rsz=large&q=%s'   
-BING_JSON_URL   = 'http://api.bing.net/json.aspx?AppId=879000C53DA17EA8DB4CD1B103C00243FD0EFEE8&Version=2.2&Query=%s&Sources=web&Web.Count=8&JsonType=raw'
 FREEBASE_URL    = 'http://freebase.plexapp.com'
 
 def Start():
@@ -43,13 +42,12 @@ class PlexMovieAgent(Agent.Movies):
     GOOGLE_JSON_QUOTES = GOOGLE_JSON_URL % String.Quote('"' + normalizedName + searchYear + '"', usePlus=True) + '+site:imdb.com'
     GOOGLE_JSON_NOQUOTES = GOOGLE_JSON_URL % String.Quote(normalizedName + searchYear, usePlus=True) + '+site:imdb.com'
     GOOGLE_JSON_NOSITE = GOOGLE_JSON_URL % String.Quote(normalizedName + searchYear, usePlus=True) + '+imdb.com'
-    BING_JSON = BING_JSON_URL % String.Quote(normalizedName + searchYear, usePlus=True) + '+site:imdb.com'
     
     subsequentSearchPenalty = 0
     idMap = {}
     bestNameMap = {}
     
-    for s in [GOOGLE_JSON_QUOTES, GOOGLE_JSON_NOQUOTES, GOOGLE_JSON_NOSITE, BING_JSON]:
+    for s in [GOOGLE_JSON_QUOTES, GOOGLE_JSON_NOQUOTES, GOOGLE_JSON_NOSITE]:
       if s == GOOGLE_JSON_QUOTES and (media.name.count(' ') == 0 or media.name.count('&') > 0 or media.name.count(' and ') > 0):
         # no reason to run this test, plus it screwed up some searches
         continue 
@@ -63,14 +61,7 @@ class PlexMovieAgent(Agent.Movies):
         # Make sure we have results and normalize them.
         hasResults = False
         try:
-          if s.count('bing.net') > 0:
-            jsonObj = JSON.ObjectFromURL(s)['SearchResponse']['Web']
-            if jsonObj['Total'] > 0:
-              jsonObj = jsonObj['Results']
-              hasResults = True
-              urlKey = 'Url'
-              titleKey = 'Title'
-          elif s.count('googleapis.com') > 0:
+          if s.count('googleapis.com') > 0:
             jsonObj = self.getGoogleResult(s)
             if jsonObj['responseData'] != None:
               jsonObj = jsonObj['responseData']['results']
@@ -97,7 +88,7 @@ class PlexMovieAgent(Agent.Movies):
               Log("Skipping strange title: " + title + " with URL " + url)
               continue
             else:
-              Log("Using [%s] derived from [%s]" % (imdbName, title))
+              Log("Using [%s] derived from [%s] (url=%s)" % (imdbName, title, url))
               
             scorePenalty = 0
             url = r[urlKey].lower().replace('us.vdc','www').replace('title?','title/tt') #massage some of the weird url's google has
@@ -320,6 +311,7 @@ class PlexMovieAgent(Agent.Movies):
     
   def cleanupName(self, s):
     imdbName = re.sub('^[iI][mM][dD][bB][ ]*:[ ]*', '', s)
+    imdbName = re.sub('^details - ', '', s)
     imdbName = HTML.ElementFromString(imdbName).text
     
     if imdbName:
