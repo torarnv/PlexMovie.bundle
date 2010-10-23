@@ -46,6 +46,7 @@ class PlexMovieAgent(Agent.Movies):
     subsequentSearchPenalty = 0
     idMap = {}
     bestNameMap = {}
+    bestNameDist = 1000
     
     for s in [GOOGLE_JSON_QUOTES, GOOGLE_JSON_NOQUOTES, GOOGLE_JSON_NOSITE]:
       if s == GOOGLE_JSON_QUOTES and (media.name.count(' ') == 0 or media.name.count('&') > 0 or media.name.count(' and ') > 0):
@@ -119,8 +120,9 @@ class PlexMovieAgent(Agent.Movies):
                 
                 # Keep the closest name around.
                 distance = Util.LevenshteinDistance(media.name, imdbName)
-                if not bestNameMap.has_key(id) or distance < bestNameMap[id]:
+                if not bestNameMap.has_key(id) or distance < bestNameDist:
                   bestNameMap[id] = imdbName
+                  bestNameDist = distance
                 
                 # Don't process for the same ID more than once.
                 if idMap.has_key(id):
