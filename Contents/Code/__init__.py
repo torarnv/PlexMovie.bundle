@@ -16,8 +16,7 @@ class PlexMovieAgent(Agent.Movies):
   def getGoogleResult(self, url):
     res = JSON.ObjectFromURL(url)
     if res['responseStatus'] != 200:
-      res = JSON.ObjectFromURL(url, cacheTime=0)
-    time.sleep(0.5)
+      res = JSON.ObjectFromURL(url, cacheTime=0, sleep=0.5)
     return res
   
   def search(self, results, media, lang):
@@ -81,7 +80,7 @@ class PlexMovieAgent(Agent.Movies):
             # Get data.
             url = r[urlKey]
             title = r[titleKey]
-
+            
             # Parse the name and year.
             imdbName, imdbYear = self.parseTitle(title)
             if not imdbName:
@@ -98,7 +97,7 @@ class PlexMovieAgent(Agent.Movies):
       
             splitUrl = url.split('/')
       
-            if len(splitUrl) == 6 and splitUrl[-2].startswith('tt'):
+            if len(splitUrl) == 6 and re.match('tt[0-9]+', splitUrl[-2]) is not None:
               
               # This is the case where it is not just a link to the main imdb title page, but to a subpage. 
               # In some odd cases, google is a bit off so let's include these with lower scores "just in case".
@@ -106,12 +105,13 @@ class PlexMovieAgent(Agent.Movies):
               scorePenalty = 10
               del splitUrl[-1]
       
-            if len(splitUrl) > 5 and splitUrl[-1].startswith('tt'):
+            if len(splitUrl) > 5 and re.match('tt[0-9]+', splitUrl[-1]) is not None:
               while len(splitUrl) > 5:
                 del splitUrl[-2]
               scorePenalty += 5
 
-            if len(splitUrl) == 5 and splitUrl[-1].startswith('tt'):
+            if len(splitUrl) == 5 and re.match('tt[0-9]+', splitUrl[-1]) is not None:
+              
               id = splitUrl[-1]
               if id.count('+') > 0:
                 # Penalizing for abnormal tt link.
@@ -313,8 +313,8 @@ class PlexMovieAgent(Agent.Movies):
     
   def cleanupName(self, s):
     imdbName = re.sub('^[iI][mM][dD][bB][ ]*:[ ]*', '', s)
-    imdbName = re.sub('^details - ', '', s)
-    imdbName = re.sub('(.*:: )+', '', s)
+    imdbName = re.sub('^details - ', '', imdbName)
+    imdbName = re.sub('(.*:: )+', '', imdbName)
     imdbName = HTML.ElementFromString(imdbName).text
     
     if imdbName:
