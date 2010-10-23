@@ -314,6 +314,7 @@ class PlexMovieAgent(Agent.Movies):
   def cleanupName(self, s):
     imdbName = re.sub('^[iI][mM][dD][bB][ ]*:[ ]*', '', s)
     imdbName = re.sub('^details - ', '', s)
+    imdbName = re.sub('(.*:: )+', '', s)
     imdbName = HTML.ElementFromString(imdbName).text
     
     if imdbName:
