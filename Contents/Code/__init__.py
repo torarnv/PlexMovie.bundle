@@ -295,12 +295,12 @@ class PlexMovieAgent(Agent.Movies):
 
   def parseTitle(self, title):
     # Parse out title, year, and extra.
-    titleRx = '(.*) \(([0-9]+)(/.*)?\).*'
+    titleRx = '(.*) \((TV )?([0-9]+)(/.*)?\).*'
     m = re.match(titleRx, title)
     if m:
       # A bit more processing for the name.
-      imdbName = self.cleanupName(m.groups(1)[0])
-      imdbYear = int(m.groups(1)[1])
+      imdbName = self.cleanupName(m.groups()[0])
+      imdbYear = int(m.groups()[2])
       return (imdbName, imdbYear)
       
     longTitleRx = '(.*\.\.\.)'
