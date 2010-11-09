@@ -11,7 +11,9 @@ def Start():
   
 class PlexMovieAgent(Agent.Movies):
   name = 'Freebase'
-  languages = [Locale.Language.English, 'sv', 'fr', 'es', 'nl', 'de', 'it']
+  languages = [Locale.Language.English, Locale.Language.Swedish, Locale.Language.French, 
+               Locale.Language.Spanish, Locale.Language.Dutch, Locale.Language.German, 
+               Locale.Language.Italian]
   
   def getGoogleResult(self, url):
     res = JSON.ObjectFromURL(url)
