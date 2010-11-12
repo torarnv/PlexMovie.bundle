@@ -1,9 +1,6 @@
 import datetime, re, time, unicodedata
 
-# [might want to look into language/country stuff at some point] 
-# param info here: http://code.google.com/apis/ajaxsearch/documentation/reference.html
-#
-GOOGLE_JSON_URL = 'http://ajax.googleapis.com/ajax/services/search/web?v=1.0&rsz=large&q=%s'   
+YAHOO_JSON_URL  = 'http://boss.yahooapis.com/ysearch/web/v1/%s+site:imdb.com?appid=W1JFi4HIkY1S9.FVt8_3kS9W_tuNjFIkWHKC0a8-&style=raw'
 FREEBASE_URL    = 'http://freebase.plexapp.com'
 
 def Start():
@@ -15,13 +12,22 @@ class PlexMovieAgent(Agent.Movies):
                Locale.Language.Spanish, Locale.Language.Dutch, Locale.Language.German, 
                Locale.Language.Italian]
   
-  def getGoogleResult(self, url):
-    res = JSON.ObjectFromURL(url)
-    if res['responseStatus'] != 200:
-      res = JSON.ObjectFromURL(url, cacheTime=0, sleep=0.5)
-    return res
+  def getYahooResults(self, url):
+    try:
+      ret = JSON.ObjectFromURL(url, sleep=1)
+      if ret['ysearchresponse'] != None and ret['ysearchresponse']['responsecode'] == '200':
+        return ret['ysearchresponse']['resultset_web']
+    except:
+      pass
+    
+    return []
   
   def search(self, results, media, lang):
+    
+    # Keep track of best names.
+    idMap = {}
+    bestNameMap = {}
+    bestNameDist = 1000
     
     # See if we're being passed a raw ID.
     if media.guid or re.match('t*[0-9]{7}', media.name):
@@ -33,6 +39,7 @@ class PlexMovieAgent(Agent.Movies):
       (title, year) = self.findById(theGuid)
       if title is not None:
         results.Append(MetadataSearchResult(id=theGuid, name=title, year=year, lang=lang, score=100))
+        bestNameMap[theGuid] = title
           
     if media.year:
       searchYear = ' (' + str(media.year) + ')'
@@ -40,19 +47,13 @@ class PlexMovieAgent(Agent.Movies):
       searchYear = ''
     
     normalizedName = String.StripDiacritics(media.name)
-    GOOGLE_JSON_QUOTES = GOOGLE_JSON_URL % String.Quote('"' + normalizedName + searchYear + '"', usePlus=True) + '+site:imdb.com'
-    GOOGLE_JSON_NOQUOTES = GOOGLE_JSON_URL % String.Quote(normalizedName + searchYear, usePlus=True) + '+site:imdb.com'
-    GOOGLE_JSON_NOSITE = GOOGLE_JSON_URL % String.Quote(normalizedName + searchYear, usePlus=True) + '+imdb.com'
+    normalizedName = normalizedName.replace("(Director's Cut)",'')
+    YAHOO_JSON_QUOTES = YAHOO_JSON_URL % String.Quote('"' + normalizedName + searchYear + '"', usePlus=True) + '+site:imdb.com'
+    YAHOO_JSON_NOQUOTES = YAHOO_JSON_URL % String.Quote(normalizedName + searchYear, usePlus=True) + '+site:imdb.com'
     
     subsequentSearchPenalty = 0
-    idMap = {}
-    bestNameMap = {}
-    bestNameDist = 1000
     
-    for s in [GOOGLE_JSON_QUOTES, GOOGLE_JSON_NOQUOTES, GOOGLE_JSON_NOSITE]:
-      if s == GOOGLE_JSON_QUOTES and (media.name.count(' ') == 0 or media.name.count('&') > 0 or media.name.count(' and ') > 0):
-        # no reason to run this test, plus it screwed up some searches
-        continue 
+    for s in [YAHOO_JSON_NOQUOTES]:
         
       subsequentSearchPenalty += 1
 
@@ -63,14 +64,14 @@ class PlexMovieAgent(Agent.Movies):
         # Make sure we have results and normalize them.
         hasResults = False
         try:
-          if s.count('googleapis.com') > 0:
-            jsonObj = self.getGoogleResult(s)
-            if jsonObj['responseData'] != None:
-              jsonObj = jsonObj['responseData']['results']
-              if len(jsonObj) > 0:
-                hasResults = True
-                urlKey = 'unescapedUrl'
-                titleKey = 'titleNoFormatting'
+          jsonObj = self.getYahooResults(s)
+          if len(jsonObj) > 0:
+            Log("Processing %d results" % len(jsonObj))
+            hasResults = True
+            urlKey = 'url'
+            titleKey = 'title'
+          else:
+            Log("No results for search")
         except:
           Log("Exception processing search engine results.")
           pass
@@ -85,6 +86,7 @@ class PlexMovieAgent(Agent.Movies):
             
             # Parse the name and year.
             imdbName, imdbYear = self.parseTitle(title)
+            
             if not imdbName:
               # Doesn't match, let's skip it.
               Log("Skipping strange title: " + title + " with URL " + url)
@@ -283,12 +285,9 @@ class PlexMovieAgent(Agent.Movies):
       print "Error obtaining Plex movie data for", guid
 
   def findById(self, id):
-    jsonObj = self.getGoogleResult(GOOGLE_JSON_URL % id)
-    if jsonObj['responseData'] != None:
-      jsonObj = jsonObj['responseData']['results']
-    
+    jsonObj = self.getYahooResults(YAHOO_JSON_URL % id)
     try:  
-      (title, year) = self.parseTitle(jsonObj[0]['titleNoFormatting'])
+      (title, year) = self.parseTitle(jsonObj[0]['title'])
       return (title, year)
     except:
       pass
@@ -296,6 +295,9 @@ class PlexMovieAgent(Agent.Movies):
     return (None, None)
 
   def parseTitle(self, title):
+    # Strip tags.
+    title = re.sub('<[^>]+>','', title)
+    
     # Parse out title, year, and extra.
     titleRx = '(.*) \((TV )?([0-9]+)(/.*)?\).*'
     m = re.match(titleRx, title)
