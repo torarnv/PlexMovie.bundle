@@ -131,15 +131,13 @@ class PlexMovieAgent(Agent.Movies):
               if idMap.has_key(id):
                 continue
                 
-              idMap[id] = True
-              
               # Check to see if the item's release year is in the future, if so penalize.
               if imdbYear > datetime.datetime.now().year:
                 Log(imdbName + ' penalizing for future release date')
                 scorePenalty += 25
             
               # Check to see if the hinted year is different from imdb's year, if so penalize.
-              elif media.year and int(media.year) != int(imdbYear): 
+              elif media.year and imdbYear and int(media.year) != int(imdbYear): 
                 Log(imdbName + ' penalizing for hint year and imdb year being different')
                 yearDiff = abs(int(media.year)-(int(imdbYear)))
                 if yearDiff == 1:
@@ -150,7 +148,7 @@ class PlexMovieAgent(Agent.Movies):
                   scorePenalty += 15
                   
               # Bonus (or negatively penalize) for year match.
-              elif media.year and int(media.year) != int(imdbYear): 
+              elif media.year and imdbYear and int(media.year) != int(imdbYear): 
                 scorePenalty += -5
               
               # It's a video game, run away!
@@ -170,6 +168,7 @@ class PlexMovieAgent(Agent.Movies):
                 scorePenalty += 25
               
               # Finally, add the result.
+              idMap[id] = True
               results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score - (scorePenalty + subsequentSearchPenalty)))
             except:
               Log('Exception processing IMDB Result')
