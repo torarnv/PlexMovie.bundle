@@ -97,22 +97,27 @@ class PlexMovieAgent(Agent.Movies):
       Log("freebase/proxy guid lookup failed")
 
     # plexhash search vector
-#    url = '%s/movie/hash/%s/%s.xml' % (FREEBASE_URL, media.name[0:2], media.name)
-#    Log("checking plexhash search vector: %s" % url)
-#    try:
-#      res = XML.ElementFromURL(url)
-#      for match in res.xpath('//match'):
-#        id       = "tt%s" % match.get('guid')
-#        if idMap.has_key(id):
-#          continue
-#        imdbName = match.get('title')
-#        imdbYear = match.get('year')
-#        score    = match.get('percentage')
-#        idMap[id] = True
-#        bestNameMap[id] = imdbName 
-#        results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
-#    except:
-#      Log("freebase/proxy guid lookup failed")
+    plexHashes = []
+    for item in media.items:
+      for part in item.parts:
+        if part.plexHash: plexHashes.append(part.plexHash)
+    for ph in plexHashes: 
+      url = '%s/movie/hash/%s/%s.xml' % (FREEBASE_URL, ph[0:2], ph)
+      Log("checking plexhash search vector: %s" % url)
+      try:
+        res = XML.ElementFromURL(url)
+        for match in res.xpath('//match'):
+          id       = "tt%s" % match.get('guid')
+          if idMap.has_key(id):
+            continue
+          imdbName = match.get('title')
+          imdbYear = match.get('year')
+          score    = match.get('percentage')
+          idMap[id] = True
+          bestNameMap[id] = imdbName 
+          results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
+      except:
+        Log("freebase/proxy plexHash lookup failed")
 
     if len(results) == 0:
       normalizedName = String.StripDiacritics(media.name)
