@@ -78,6 +78,8 @@ class PlexMovieAgent(Agent.Movies):
     # first look in the proxy/cache 
     titleyear_guid = self.titleyear_guid(media.name,searchYear)
 
+    bestCacheHitScore = 0
+
     # title|year search vector
     url = '%s/movie/guid/%s/%s.xml' % (FREEBASE_URL, titleyear_guid[0:2], titleyear_guid)
     Log("checking title|year search vector: %s" % url)
@@ -87,14 +89,31 @@ class PlexMovieAgent(Agent.Movies):
         id       = "tt%s" % match.get('guid')
         if idMap.has_key(id):
           continue
-        imdbName = match.get('title')
-        imdbYear = match.get('year')
-        score    = match.get('percentage')
         idMap[id] = True
+
+        imdbName = match.get('title')
         bestNameMap[id] = imdbName 
+
+        imdbYear = match.get('year')
+
+        score    = float(match.get('percentage'))
+
+        s1 = self.identifierize(media.name)
+        s2 = self.identifierize(imdbName)
+
+        smax = float(max([ len(s1), len(s2) ]))
+         
+        distance = float(Util.LevenshteinDistance(s1, s2))
+        ratio    = float( 1 - (distance/smax) )
+        score    = int(float(score) * ratio)
+        Log("new score: %s" % score)
+
+        if score > bestCacheHitScore:
+          bestCacheHitScore = score
+
         results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
-    except:
-      Log("freebase/proxy guid lookup failed")
+    except Except, e:
+      Log("freebase/proxy guid lookup failed: %s" % repr(e))
 
     # plexhash search vector
     plexHashes = []
@@ -102,9 +121,9 @@ class PlexMovieAgent(Agent.Movies):
       for part in item.parts:
         if part.plexHash: plexHashes.append(part.plexHash)
     for ph in plexHashes: 
-      url = '%s/movie/hash/%s/%s.xml' % (FREEBASE_URL, ph[0:2], ph)
-      Log("checking plexhash search vector: %s" % url)
       try:
+        url = '%s/movie/hash/%s/%s.xml' % (FREEBASE_URL, ph[0:2], ph)
+        Log("checking plexhash search vector: %s" % url)
         res = XML.ElementFromURL(url)
         for match in res.xpath('//match'):
           id       = "tt%s" % match.get('guid')
@@ -112,14 +131,28 @@ class PlexMovieAgent(Agent.Movies):
             continue
           imdbName = match.get('title')
           imdbYear = match.get('year')
-          score    = match.get('percentage')
           idMap[id] = True
           bestNameMap[id] = imdbName 
-          results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
-      except:
-        Log("freebase/proxy plexHash lookup failed")
+          score    = float(match.get('percentage'))
+  
+          s1 = self.identifierize(media.name)
+          s2 = self.identifierize(imdbName)
+  
+          smax = float(max([ len(s1), len(s2) ]))
+           
+          distance = float(Util.LevenshteinDistance(s1, s2))
+          ratio    = float( 1 - (distance/smax) )
+          score    = int(float(score) * ratio)
+          Log("new score: %s" % score)
 
-    if len(results) == 0:
+          if score > bestCacheHitScore:
+            bestCacheHitScore = score
+  
+          results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
+      except Exception, e:
+        Log("freebase/proxy plexHash lookup failed: %s" % repr(e))
+
+    if len(results) == 0 or bestCacheHitScore < 50:
       normalizedName = String.StripDiacritics(media.name)
       GOOGLE_JSON_QUOTES = GOOGLE_JSON_URL % (self.getPublicIP(), String.Quote('"' + normalizedName + searchYear + '"', usePlus=True)) + '+site:imdb.com'
       GOOGLE_JSON_NOQUOTES = GOOGLE_JSON_URL % (self.getPublicIP(), String.Quote(normalizedName + searchYear, usePlus=True)) + '+site:imdb.com'
