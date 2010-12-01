@@ -201,13 +201,6 @@ class PlexMovieAgent(Agent.Movies):
     if media:
       metadata.title = media.title
 
-    # FIXME, this is dumb, we already know the title.
-    m = re.search('(tt[0-9]+)', metadata.guid)
-    if m:
-      id = m.groups(1)[0]
-      (title, year) = self.findById(id)
-      metadata.year = year
-
     # Hit our repository.
     guid = re.findall('tt([0-9]+)', metadata.guid)[0]
     url = '%s/movies/%s/%s.xml' % (FREEBASE_URL, guid[-2:], guid)
@@ -281,6 +274,13 @@ class PlexMovieAgent(Agent.Movies):
       
     except:
       print "Error obtaining Plex movie data for", guid
+
+    m = re.search('(tt[0-9]+)', metadata.guid)
+    if m and not metadata.year:
+      id = m.groups(1)[0]
+      (title, year) = self.findById(id)
+      metadata.year = year
+
 
   def findById(self, id):
     jsonObj = self.getGoogleResults(GOOGLE_JSON_URL % (self.getPublicIP(), id))
