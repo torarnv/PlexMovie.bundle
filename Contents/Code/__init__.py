@@ -115,78 +115,77 @@ class PlexMovieAgent(Agent.Movies):
 #      Log("freebase/proxy guid lookup failed")
 
     if len(results) == 0:
-    
-      normalizedname = string.stripdiacritics(media.name)
-      google_json_quotes = google_json_url % (self.getpublicip(), string.quote('"' + normalizedname + searchyear + '"', useplus=true)) + '+site:imdb.com'
-      google_json_noquotes = google_json_url % (self.getpublicip(), string.quote(normalizedname + searchyear, useplus=true)) + '+site:imdb.com'
-      google_json_nosite = google_json_url % (self.getpublicip(), string.quote(normalizedname + searchyear, useplus=true)) + '+imdb.com'
+      normalizedName = String.StripDiacritics(media.name)
+      GOOGLE_JSON_QUOTES = GOOGLE_JSON_URL % (self.getPublicIP(), String.Quote('"' + normalizedName + searchYear + '"', usePlus=True)) + '+site:imdb.com'
+      GOOGLE_JSON_NOQUOTES = GOOGLE_JSON_URL % (self.getPublicIP(), String.Quote(normalizedName + searchYear, usePlus=True)) + '+site:imdb.com'
+      GOOGLE_JSON_NOSITE = GOOGLE_JSON_URL % (self.getPublicIP(), String.Quote(normalizedName + searchYear, usePlus=True)) + '+imdb.com'
       
-      subsequentsearchpenalty = 0
+      subsequentSearchPenalty = 0
       
-      for s in [google_json_quotes, google_json_noquotes]:
-        if s == google_json_quotes and (media.name.count(' ') == 0 or media.name.count('&') > 0 or media.name.count(' and ') > 0):
+      for s in [GOOGLE_JSON_QUOTES, GOOGLE_JSON_NOQUOTES]:
+        if s == GOOGLE_JSON_QUOTES and (media.name.count(' ') == 0 or media.name.count('&') > 0 or media.name.count(' and ') > 0):
           # no reason to run this test, plus it screwed up some searches
           continue 
           
-        subsequentsearchpenalty += 1
+        subsequentSearchPenalty += 1
   
-        # check to see if we need to bother running the subsequent searches
-        log("we have %d results" % len(results))
+        # Check to see if we need to bother running the subsequent searches
+        Log("We have %d results" % len(results))
         if len(results) < 3:
           score = 99
           
-          # make sure we have results and normalize them.
-          jsonobj = self.getgoogleresults(s)
+          # Make sure we have results and normalize them.
+          jsonObj = self.getGoogleResults(s)
             
-          # now walk through the results.    
-          for r in jsonobj:
+          # Now walk through the results.    
+          for r in jsonObj:
             
-            # get data.
-            url = r['unescapedurl']
-            title = r['titlenoformatting']
+            # Get data.
+            url = r['unescapedUrl']
+            title = r['titleNoFormatting']
             
-            # parse the name and year.
-            imdbname, imdbyear = self.parsetitle(title)
-            if not imdbname:
-              # doesn't match, let's skip it.
-              log("skipping strange title: " + title + " with url " + url)
+            # Parse the name and year.
+            imdbName, imdbYear = self.parseTitle(title)
+            if not imdbName:
+              # Doesn't match, let's skip it.
+              Log("Skipping strange title: " + title + " with URL " + url)
               continue
             else:
-              log("using [%s] derived from [%s] (url=%s)" % (imdbname, title, url))
+              Log("Using [%s] derived from [%s] (url=%s)" % (imdbName, title, url))
               
-            scorepenalty = 0
-            url = r['unescapedurl'].lower().replace('us.vdc','www').replace('title?','title/tt') #massage some of the weird url's google has
+            scorePenalty = 0
+            url = r['unescapedUrl'].lower().replace('us.vdc','www').replace('title?','title/tt') #massage some of the weird url's google has
             if url[-1:] == '/':
               url = url[:-1]
       
-            spliturl = url.split('/')
+            splitUrl = url.split('/')
       
-            if len(spliturl) == 6 and re.match('tt[0-9]+', spliturl[-2]) is not none:
+            if len(splitUrl) == 6 and re.match('tt[0-9]+', splitUrl[-2]) is not None:
               
-              # this is the case where it is not just a link to the main imdb title page, but to a subpage. 
-              # in some odd cases, google is a bit off so let's include these with lower scores "just in case".
+              # This is the case where it is not just a link to the main imdb title page, but to a subpage. 
+              # In some odd cases, google is a bit off so let's include these with lower scores "just in case".
               #
-              scorepenalty = 10
-              del spliturl[-1]
+              scorePenalty = 10
+              del splitUrl[-1]
       
-            if len(spliturl) > 5 and re.match('tt[0-9]+', spliturl[-1]) is not none:
-              while len(spliturl) > 5:
-                del spliturl[-2]
-              scorepenalty += 5
+            if len(splitUrl) > 5 and re.match('tt[0-9]+', splitUrl[-1]) is not None:
+              while len(splitUrl) > 5:
+                del splitUrl[-2]
+              scorePenalty += 5
   
-            if len(spliturl) == 5 and re.match('tt[0-9]+', spliturl[-1]) is not none:
+            if len(splitUrl) == 5 and re.match('tt[0-9]+', splitUrl[-1]) is not None:
               
-              id = spliturl[-1]
+              id = splitUrl[-1]
               if id.count('+') > 0:
-                # penalizing for abnormal tt link.
-                scorepenalty += 10
+                # Penalizing for abnormal tt link.
+                scorePenalty += 10
               try:
                 
-                # keep the closest name around.
-                distance = util.levenshteindistance(media.name, imdbname)
-                if not bestnamemap.has_key(id) or distance < bestnamedist:
-                  bestnamemap[id] = imdbname
-                  bestnamedist = distance
+                # Keep the closest name around.
+                distance = Util.LevenshteinDistance(media.name, imdbName)
+                if not bestNameMap.has_key(id) or distance < bestNameDist:
+                  bestNameMap[id] = imdbName
+                  bestNameDist = distance
                 
                 # Don't process for the same ID more than once.
                 if idMap.has_key(id):
@@ -237,6 +236,7 @@ class PlexMovieAgent(Agent.Movies):
            
             # Each search entry is worth less, but we subtract even if we don't use the entry...might need some thought.
             score = score - 4 
+    
     ## end giant google block
       
     results.Sort('score', descending=True)
