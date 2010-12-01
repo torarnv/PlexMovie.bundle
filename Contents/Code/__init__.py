@@ -57,10 +57,11 @@ class PlexMovieAgent(Agent.Movies):
     idMap = {}
     bestNameMap = {}
     bestNameDist = 1000
+    title = media.name
     
     # See if we're being passed a raw ID.
-    if media.guid or re.match('t*[0-9]{7}', media.name):
-      theGuid = media.guid or media.name
+    if media.guid or re.match('t*[0-9]{7}', title):
+      theGuid = media.guid or title
       if not theGuid.startswith('tt'):
         theGuid = 'tt' + theGuid
       
@@ -76,7 +77,7 @@ class PlexMovieAgent(Agent.Movies):
       searchYear = ''
 
     # first look in the proxy/cache 
-    titleyear_guid = self.titleyear_guid(media.name,searchYear)
+    titleyear_guid = self.titleyear_guid(title,searchYear)
 
     bestCacheHitScore = 0
 
@@ -98,7 +99,7 @@ class PlexMovieAgent(Agent.Movies):
 
         score    = float(match.get('percentage'))
 
-        s1 = self.identifierize(media.name)
+        s1 = self.identifierize(title)
         s2 = self.identifierize(imdbName)
 
         smax = float(max([ len(s1), len(s2) ]))
@@ -112,7 +113,7 @@ class PlexMovieAgent(Agent.Movies):
           bestCacheHitScore = score
 
         results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
-    except Except, e:
+    except Exception, e:
       Log("freebase/proxy guid lookup failed: %s" % repr(e))
 
     # plexhash search vector
@@ -135,7 +136,7 @@ class PlexMovieAgent(Agent.Movies):
           bestNameMap[id] = imdbName 
           score    = float(match.get('percentage'))
   
-          s1 = self.identifierize(media.name)
+          s1 = self.identifierize(title)
           s2 = self.identifierize(imdbName)
   
           smax = float(max([ len(s1), len(s2) ]))
@@ -152,8 +153,14 @@ class PlexMovieAgent(Agent.Movies):
       except Exception, e:
         Log("freebase/proxy plexHash lookup failed: %s" % repr(e))
 
+    doGoogleSearch = False
     if len(results) == 0 or bestCacheHitScore < 50:
-      normalizedName = String.StripDiacritics(media.name)
+      doGoogleSearch = True
+
+    Log("PLEXMOVIE INFO RETRIEVAL: CACHE: %s SEARCH_ENGINE: %s" % (len(results)>0, doGoogleSearch))
+
+    if doGoogleSearch:
+      normalizedName = String.StripDiacritics(title)
       GOOGLE_JSON_QUOTES = GOOGLE_JSON_URL % (self.getPublicIP(), String.Quote('"' + normalizedName + searchYear + '"', usePlus=True)) + '+site:imdb.com'
       GOOGLE_JSON_NOQUOTES = GOOGLE_JSON_URL % (self.getPublicIP(), String.Quote(normalizedName + searchYear, usePlus=True)) + '+site:imdb.com'
       GOOGLE_JSON_NOSITE = GOOGLE_JSON_URL % (self.getPublicIP(), String.Quote(normalizedName + searchYear, usePlus=True)) + '+imdb.com'
@@ -161,7 +168,7 @@ class PlexMovieAgent(Agent.Movies):
       subsequentSearchPenalty = 0
       
       for s in [GOOGLE_JSON_QUOTES, GOOGLE_JSON_NOQUOTES]:
-        if s == GOOGLE_JSON_QUOTES and (media.name.count(' ') == 0 or media.name.count('&') > 0 or media.name.count(' and ') > 0):
+        if s == GOOGLE_JSON_QUOTES and (title.count(' ') == 0 or title.count('&') > 0 or title.count(' and ') > 0):
           # no reason to run this test, plus it screwed up some searches
           continue 
           
@@ -220,7 +227,7 @@ class PlexMovieAgent(Agent.Movies):
               try:
                 
                 # Keep the closest name around.
-                distance = Util.LevenshteinDistance(media.name, imdbName)
+                distance = Util.LevenshteinDistance(title, imdbName)
                 if not bestNameMap.has_key(id) or distance < bestNameDist:
                   bestNameMap[id] = imdbName
                   bestNameDist = distance
@@ -259,10 +266,10 @@ class PlexMovieAgent(Agent.Movies):
                   scorePenalty += 6
               
                 # Sanity check to make sure we have SOME common substring.
-                longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
+                longestCommonSubstring = len(Util.LongestCommonSubstring(title.lower(), imdbName.lower()))
                 
                 # If we don't have at least 10% in common, then penalize below the 80 point threshold
-                if (float(longestCommonSubstring) / len(media.name)) < .15: 
+                if (float(longestCommonSubstring) / len(title)) < .15: 
                   scorePenalty += 25
                 
                 # Finally, add the result.
