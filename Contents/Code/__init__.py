@@ -60,14 +60,18 @@ class PlexMovieAgent(Agent.Movies):
     idMap = {}
     bestNameMap = {}
     bestNameDist = 1000
-    
+   
+    # TODO: create a plex controlled cache for lookup
+    # TODO: by imdbid  -> (title,year)
     # See if we're being passed a raw ID.
+    findByIdCalled = False
     if media.guid or re.match('t*[0-9]{7}', media.name):
       theGuid = media.guid or media.name 
       if not theGuid.startswith('tt'):
         theGuid = 'tt' + theGuid
       
       # Add a result for the id found in the passed in guid hint.
+      findByIdCalled = True
       (title, year) = self.findById(theGuid)
       if title is not None:
         results.Append(MetadataSearchResult(id=theGuid, name=title, year=year, lang=lang, score=100))
@@ -82,7 +86,7 @@ class PlexMovieAgent(Agent.Movies):
     titleyear_guid = self.titleyear_guid(media.name,searchYear)
 
     bestCacheHitScore = 0
-
+    cacheConsulted = False
     # title|year search vector
     url = '%s/movie/guid/%s/%s.xml' % (FREEBASE_URL, titleyear_guid[0:2], titleyear_guid)
     Log("checking title|year search vector: %s" % url)
@@ -114,6 +118,7 @@ class PlexMovieAgent(Agent.Movies):
         if score > bestCacheHitScore:
           bestCacheHitScore = score
 
+        cacheConsulted = True
         results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
     except Exception, e:
       Log("freebase/proxy guid lookup failed: %s" % repr(e))
@@ -151,6 +156,7 @@ class PlexMovieAgent(Agent.Movies):
           if score > bestCacheHitScore:
             bestCacheHitScore = score
   
+          cacheConsulted = True
           results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
       except Exception, e:
         Log("freebase/proxy plexHash lookup failed: %s" % repr(e))
@@ -159,7 +165,7 @@ class PlexMovieAgent(Agent.Movies):
     if len(results) == 0 or bestCacheHitScore < 50:
       doGoogleSearch = True
 
-    Log("PLEXMOVIE INFO RETRIEVAL: CACHE: %s SEARCH_ENGINE: %s" % (len(results)>0, doGoogleSearch))
+    Log("PLEXMOVIE INFO RETRIEVAL: FINDBYID: %s CACHE: %s SEARCH_ENGINE: %s" % (findByIdCalled, cacheConsulted, doGoogleSearch))
 
     if doGoogleSearch:
       normalizedName = String.StripDiacritics(media.name)
