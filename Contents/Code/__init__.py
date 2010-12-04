@@ -131,7 +131,7 @@ class PlexMovieAgent(Agent.Movies):
         Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
 
         if (score - scorePenalty) > bestCacheHitScore:
-          bestCacheHitScore = score
+          bestCacheHitScore = score - scorePenalty
 
         cacheConsulted = True
         ## note, go ahead and always trust the cache to have a high score... jsut keep track 
@@ -187,7 +187,7 @@ class PlexMovieAgent(Agent.Movies):
           Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
 
           if (score - scorePenalty) > bestCacheHitScore:
-            bestCacheHitScore = score
+            bestCacheHitScore = score - scorePenalty
   
           cacheConsulted = True
           ## note, go ahead and always trust the cache to have a high score... jsut keep track 
