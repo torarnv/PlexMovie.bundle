@@ -92,33 +92,50 @@ class PlexMovieAgent(Agent.Movies):
     Log("checking title|year search vector: %s" % url)
     try:
       res = XML.ElementFromURL(url)
+      score = 100
       for match in res.xpath('//match'):
+        score = score - 4
         id       = "tt%s" % match.get('guid')
-        if idMap.has_key(id):
-          continue
-        idMap[id] = True
 
         imdbName = match.get('title')
         bestNameMap[id] = imdbName 
 
         imdbYear = match.get('year')
 
-        score    = float(match.get('percentage'))
+        scorePenalty = 0
+        if int(imdbYear) > datetime.datetime.now().year:
+          Log(imdbName + ' penalizing for future release date')
+          scorePenalty += 25
 
-        s1 = self.identifierize(media.name)
-        s2 = self.identifierize(imdbName)
+        # Check to see if the hinted year is different from imdb's year, if so penalize.
+        elif media.year and imdbYear and int(media.year) != int(imdbYear):
+          Log(imdbName + ' penalizing for hint year and imdb year being different')
+          yearDiff = abs(int(media.year)-(int(imdbYear)))
+          if yearDiff == 1:
+            scorePenalty += 5
+          elif yearDiff == 2:
+            scorePenalty += 10
+          else:
+            scorePenalty += 15
+        # Bonus (or negatively penalize) for year match.
+        elif media.year and imdbYear and int(media.year) != int(imdbYear):
+          scorePenalty += -5
 
-        smax = float(max([ len(s1), len(s2) ]))
-         
-        distance = float(Util.LevenshteinDistance(s1, s2))
-        ratio    = float( 1 - (distance/smax) )
-        score    = int(float(score) * ratio)
-        Log("new score: %s" % score)
+        # Sanity check to make sure we have SOME common substring.
+        longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
 
-        if score > bestCacheHitScore:
+        # If we don't have at least 10% in common, then penalize below the 80 point threshold
+        if (float(longestCommonSubstring) / len(media.name)) < .15:
+          scorePenalty += 25
+
+        Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
+
+        if (score - scorePenalty) > bestCacheHitScore:
           bestCacheHitScore = score
 
         cacheConsulted = True
+        ## note, go ahead and always trust the cache to have a high score... jsut keep track 
+        ## of "penalties" to determine if google should also be consulted
         results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
     except Exception, e:
       Log("freebase/proxy guid lookup failed: %s" % repr(e))
@@ -133,36 +150,54 @@ class PlexMovieAgent(Agent.Movies):
         url = '%s/movie/hash/%s/%s.xml' % (FREEBASE_URL, ph[0:2], ph)
         Log("checking plexhash search vector: %s" % url)
         res = XML.ElementFromURL(url)
+        score = 100
         for match in res.xpath('//match'):
+          score = score - 4
           id       = "tt%s" % match.get('guid')
-          if idMap.has_key(id):
-            continue
           imdbName = match.get('title')
           imdbYear = match.get('year')
-          idMap[id] = True
           bestNameMap[id] = imdbName 
-          score    = float(match.get('percentage'))
-  
-          s1 = self.identifierize(media.name)
-          s2 = self.identifierize(imdbName)
-  
-          smax = float(max([ len(s1), len(s2) ]))
-           
-          distance = float(Util.LevenshteinDistance(s1, s2))
-          ratio    = float( 1 - (distance/smax) )
-          score    = int(float(score) * ratio)
-          Log("new score: %s" % score)
 
-          if score > bestCacheHitScore:
+          scorePenalty = 0
+          if int(imdbYear) > datetime.datetime.now().year:
+            Log(imdbName + ' penalizing for future release date')
+            scorePenalty += 25
+  
+          # Check to see if the hinted year is different from imdb's year, if so penalize.
+          elif media.year and imdbYear and int(media.year) != int(imdbYear):
+            Log(imdbName + ' penalizing for hint year and imdb year being different')
+            yearDiff = abs(int(media.year)-(int(imdbYear)))
+            if yearDiff == 1:
+              scorePenalty += 5
+            elif yearDiff == 2:
+              scorePenalty += 10
+            else:
+              scorePenalty += 15
+          # Bonus (or negatively penalize) for year match.
+          elif media.year and imdbYear and int(media.year) != int(imdbYear):
+            scorePenalty += -5
+  
+          # Sanity check to make sure we have SOME common substring.
+          longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
+  
+          # If we don't have at least 10% in common, then penalize below the 80 point threshold
+          if (float(longestCommonSubstring) / len(media.name)) < .15:
+            scorePenalty += 25
+
+          Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
+
+          if (score - scorePenalty) > bestCacheHitScore:
             bestCacheHitScore = score
   
           cacheConsulted = True
+          ## note, go ahead and always trust the cache to have a high score... jsut keep track 
+          ## of "penalties" to determine if google should also be consulted
           results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
       except Exception, e:
         Log("freebase/proxy plexHash lookup failed: %s" % repr(e))
 
     doGoogleSearch = False
-    if len(results) == 0 or bestCacheHitScore < 50:
+    if len(results) == 0 or bestCacheHitScore < 85:
       doGoogleSearch = True
 
     Log("PLEXMOVIE INFO RETRIEVAL: FINDBYID: %s CACHE: %s SEARCH_ENGINE: %s" % (findByIdCalled, cacheConsulted, doGoogleSearch))
@@ -282,6 +317,7 @@ class PlexMovieAgent(Agent.Movies):
                 
                 # Finally, add the result.
                 idMap[id] = True
+                Log("score = %d" % (score - scorePenalty + subsequentSearchPenalty))
                 results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score - (scorePenalty + subsequentSearchPenalty)))
               except:
                 Log('Exception processing IMDB Result')
