@@ -6,6 +6,10 @@ import datetime, re, time, unicodedata, hashlib
 GOOGLE_JSON_URL = 'http://ajax.googleapis.com/ajax/services/search/web?v=1.0&userip=%s&rsz=large&q=%s'
 FREEBASE_URL    = 'http://freebase.plexapp.com'
 
+SCORE_THRESHOLD_IGNORE         = 85
+SCORE_THRESHOLD_IGNORE_PENALTY = 100 - SCORE_THRESHOLD_IGNORE
+SCORE_THRESHOLD_IGNORE_PCT = float(SCORE_THRESHOLD_IGNORE_PENALTY)/100
+
 def Start():
   HTTP.CacheTime = CACHE_1HOUR * 4
   
@@ -87,60 +91,10 @@ class PlexMovieAgent(Agent.Movies):
 
     bestCacheHitScore = 0
     cacheConsulted = False
-    # title|year search vector
-    url = '%s/movie/guid/%s/%s.xml' % (FREEBASE_URL, titleyear_guid[0:2], titleyear_guid)
-    Log("checking title|year search vector: %s" % url)
-    try:
-      res = XML.ElementFromURL(url)
-      score = 100
-      for match in res.xpath('//match'):
-        score = score - 4
-        id       = "tt%s" % match.get('guid')
-
-        imdbName = match.get('title')
-        bestNameMap[id] = imdbName 
-
-        imdbYear = match.get('year')
-
-        scorePenalty = 0
-        if int(imdbYear) > datetime.datetime.now().year:
-          Log(imdbName + ' penalizing for future release date')
-          scorePenalty += 25
-
-        # Check to see if the hinted year is different from imdb's year, if so penalize.
-        elif media.year and imdbYear and int(media.year) != int(imdbYear):
-          Log(imdbName + ' penalizing for hint year and imdb year being different')
-          yearDiff = abs(int(media.year)-(int(imdbYear)))
-          if yearDiff == 1:
-            scorePenalty += 5
-          elif yearDiff == 2:
-            scorePenalty += 10
-          else:
-            scorePenalty += 15
-        # Bonus (or negatively penalize) for year match.
-        elif media.year and imdbYear and int(media.year) != int(imdbYear):
-          scorePenalty += -5
-
-        # Sanity check to make sure we have SOME common substring.
-        longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
-
-        # If we don't have at least 10% in common, then penalize below the 80 point threshold
-        if (float(longestCommonSubstring) / len(media.name)) < .15:
-          scorePenalty += 25
-
-        Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
-
-        if (score - scorePenalty) > bestCacheHitScore:
-          bestCacheHitScore = score - scorePenalty
-
-        cacheConsulted = True
-        # score at minimum 85 (threshold) since we trust the cache to be at least moderately good
-        results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = max([ score-scorePenalty, 85])))
-    except Exception, e:
-      Log("freebase/proxy guid lookup failed: %s" % repr(e))
 
     # plexhash search vector
     plexHashes = []
+    score = 100
     for item in media.items:
       for part in item.parts:
         if part.plexHash: plexHashes.append(part.plexHash)
@@ -149,9 +103,7 @@ class PlexMovieAgent(Agent.Movies):
         url = '%s/movie/hash/%s/%s.xml' % (FREEBASE_URL, ph[0:2], ph)
         Log("checking plexhash search vector: %s" % url)
         res = XML.ElementFromURL(url)
-        score = 100
         for match in res.xpath('//match'):
-          score = score - 4
           id       = "tt%s" % match.get('guid')
           imdbName = match.get('title')
           imdbYear = match.get('year')
@@ -160,7 +112,7 @@ class PlexMovieAgent(Agent.Movies):
           scorePenalty = 0
           if int(imdbYear) > datetime.datetime.now().year:
             Log(imdbName + ' penalizing for future release date')
-            scorePenalty += 25
+            scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
   
           # Check to see if the hinted year is different from imdb's year, if so penalize.
           elif media.year and imdbYear and int(media.year) != int(imdbYear):
@@ -180,8 +132,8 @@ class PlexMovieAgent(Agent.Movies):
           longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
   
           # If we don't have at least 10% in common, then penalize below the 80 point threshold
-          if (float(longestCommonSubstring) / len(media.name)) < .15:
-            scorePenalty += 25
+          if (float(longestCommonSubstring) / len(media.name)) < SCORE_THRESHOLD_IGNORE_PCT:
+            scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
 
           Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
 
@@ -191,8 +143,61 @@ class PlexMovieAgent(Agent.Movies):
           cacheConsulted = True
           # score at minimum 85 (threshold) since we trust the cache to be at least moderately good
           results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = max([ score-scorePenalty, 85])))
+          score = score - 4
       except Exception, e:
         Log("freebase/proxy plexHash lookup failed: %s" % repr(e))
+
+    # title|year search vector
+    url = '%s/movie/guid/%s/%s.xml' % (FREEBASE_URL, titleyear_guid[0:2], titleyear_guid)
+    Log("checking title|year search vector: %s" % url)
+    try:
+      res = XML.ElementFromURL(url)
+      for match in res.xpath('//match'):
+        id       = "tt%s" % match.get('guid')
+
+        imdbName = match.get('title')
+        bestNameMap[id] = imdbName 
+
+        imdbYear = match.get('year')
+
+        scorePenalty = 0
+        if int(imdbYear) > datetime.datetime.now().year:
+          Log(imdbName + ' penalizing for future release date')
+          scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
+
+        # Check to see if the hinted year is different from imdb's year, if so penalize.
+        elif media.year and imdbYear and int(media.year) != int(imdbYear):
+          Log(imdbName + ' penalizing for hint year and imdb year being different')
+          yearDiff = abs(int(media.year)-(int(imdbYear)))
+          if yearDiff == 1:
+            scorePenalty += 5
+          elif yearDiff == 2:
+            scorePenalty += 10
+          else:
+            scorePenalty += 15
+        # Bonus (or negatively penalize) for year match.
+        elif media.year and imdbYear and int(media.year) != int(imdbYear):
+          scorePenalty += -5
+
+        # Sanity check to make sure we have SOME common substring.
+        longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
+
+        # If we don't have at least 10% in common, then penalize below the 80 point threshold
+        if (float(longestCommonSubstring) / len(media.name)) < SCORE_THRESHOLD_IGNORE_PCT:
+          scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
+
+        Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
+
+        if (score - scorePenalty) > bestCacheHitScore:
+          bestCacheHitScore = score - scorePenalty
+
+        cacheConsulted = True
+        # score at minimum 85 (threshold) since we trust the cache to be at least moderately good
+        results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = max([ score-scorePenalty, 85])))
+        score = score - 4
+    except Exception, e:
+      Log("freebase/proxy guid lookup failed: %s" % repr(e))
+
 
     doGoogleSearch = False
     if len(results) == 0 or bestCacheHitScore < 85:
@@ -280,7 +285,7 @@ class PlexMovieAgent(Agent.Movies):
                 # Check to see if the item's release year is in the future, if so penalize.
                 if imdbYear > datetime.datetime.now().year:
                   Log(imdbName + ' penalizing for future release date')
-                  scorePenalty += 25
+                  scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
               
                 # Check to see if the hinted year is different from imdb's year, if so penalize.
                 elif media.year and imdbYear and int(media.year) != int(imdbYear): 
@@ -310,8 +315,8 @@ class PlexMovieAgent(Agent.Movies):
                 longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
                 
                 # If we don't have at least 10% in common, then penalize below the 80 point threshold
-                if (float(longestCommonSubstring) / len(media.name)) < .15: 
-                  scorePenalty += 25
+                if (float(longestCommonSubstring) / len(media.name)) < SCORE_THRESHOLD_IGNORE_PCT: 
+                  scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
                 
                 # Finally, add the result.
                 idMap[id] = True
