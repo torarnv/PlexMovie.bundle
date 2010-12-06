@@ -125,7 +125,7 @@ class PlexMovieAgent(Agent.Movies):
         longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
 
         # If we don't have at least 10% in common, then penalize below the 80 point threshold
-        if (float(longestCommonSubstring) / len(media.name)) < .15:
+        if (float(longestCommonSubstring / len(media.name))) < .15:
           scorePenalty += 25
 
         Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
@@ -134,9 +134,8 @@ class PlexMovieAgent(Agent.Movies):
           bestCacheHitScore = score - scorePenalty
 
         cacheConsulted = True
-        ## note, go ahead and always trust the cache to have a high score... jsut keep track 
-        ## of "penalties" to determine if google should also be consulted
-        results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
+        # score at minimum 85 (threshold) since we trust the cache to be at least moderately good
+        results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = max([ score-scorePenalty, 85])))
     except Exception, e:
       Log("freebase/proxy guid lookup failed: %s" % repr(e))
 
@@ -181,7 +180,7 @@ class PlexMovieAgent(Agent.Movies):
           longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
   
           # If we don't have at least 10% in common, then penalize below the 80 point threshold
-          if (float(longestCommonSubstring) / len(media.name)) < .15:
+          if (float(longestCommonSubstring / len(media.name))) < .15:
             scorePenalty += 25
 
           Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
@@ -190,9 +189,8 @@ class PlexMovieAgent(Agent.Movies):
             bestCacheHitScore = score - scorePenalty
   
           cacheConsulted = True
-          ## note, go ahead and always trust the cache to have a high score... jsut keep track 
-          ## of "penalties" to determine if google should also be consulted
-          results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score))
+          # score at minimum 85 (threshold) since we trust the cache to be at least moderately good
+          results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = max([ score-scorePenalty, 85])))
       except Exception, e:
         Log("freebase/proxy plexHash lookup failed: %s" % repr(e))
 
@@ -312,7 +310,7 @@ class PlexMovieAgent(Agent.Movies):
                 longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
                 
                 # If we don't have at least 10% in common, then penalize below the 80 point threshold
-                if (float(longestCommonSubstring) / len(media.name)) < .15: 
+                if (float(longestCommonSubstring / len(media.name))) < .15: 
                   scorePenalty += 25
                 
                 # Finally, add the result.
