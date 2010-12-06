@@ -125,7 +125,7 @@ class PlexMovieAgent(Agent.Movies):
         longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
 
         # If we don't have at least 10% in common, then penalize below the 80 point threshold
-        if (float(longestCommonSubstring / len(media.name))) < .15:
+        if (float(longestCommonSubstring) / len(media.name)) < .15:
           scorePenalty += 25
 
         Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
@@ -180,7 +180,7 @@ class PlexMovieAgent(Agent.Movies):
           longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
   
           # If we don't have at least 10% in common, then penalize below the 80 point threshold
-          if (float(longestCommonSubstring / len(media.name))) < .15:
+          if (float(longestCommonSubstring) / len(media.name)) < .15:
             scorePenalty += 25
 
           Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
@@ -310,7 +310,7 @@ class PlexMovieAgent(Agent.Movies):
                 longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
                 
                 # If we don't have at least 10% in common, then penalize below the 80 point threshold
-                if (float(longestCommonSubstring / len(media.name))) < .15: 
+                if (float(longestCommonSubstring) / len(media.name)) < .15: 
                   scorePenalty += 25
                 
                 # Finally, add the result.
