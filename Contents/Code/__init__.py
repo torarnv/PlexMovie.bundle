@@ -142,7 +142,7 @@ class PlexMovieAgent(Agent.Movies):
   
           cacheConsulted = True
           # score at minimum 85 (threshold) since we trust the cache to be at least moderately good
-          results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = max([ score-scorePenalty, 85])))
+          results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = max([ score-scorePenalty, SCORE_THRESHOLD_IGNORE])))
           score = score - 4
       except Exception, e:
         Log("freebase/proxy plexHash lookup failed: %s" % repr(e))
@@ -193,14 +193,14 @@ class PlexMovieAgent(Agent.Movies):
 
         cacheConsulted = True
         # score at minimum 85 (threshold) since we trust the cache to be at least moderately good
-        results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = max([ score-scorePenalty, 85])))
+        results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = max([ score-scorePenalty, SCORE_THRESHOLD_IGNORE])))
         score = score - 4
     except Exception, e:
       Log("freebase/proxy guid lookup failed: %s" % repr(e))
 
 
     doGoogleSearch = False
-    if len(results) == 0 or bestCacheHitScore < 85:
+    if len(results) == 0 or bestCacheHitScore < SCORE_THRESHOLD_IGNORE:
       doGoogleSearch = True
 
     Log("PLEXMOVIE INFO RETRIEVAL: FINDBYID: %s CACHE: %s SEARCH_ENGINE: %s" % (findByIdCalled, cacheConsulted, doGoogleSearch))
