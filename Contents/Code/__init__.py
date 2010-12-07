@@ -5,6 +5,7 @@ import datetime, re, time, unicodedata, hashlib
 #
 GOOGLE_JSON_URL = 'http://ajax.googleapis.com/ajax/services/search/web?v=1.0&userip=%s&rsz=large&q=%s'
 FREEBASE_URL    = 'http://freebase.plexapp.com'
+PLEXMOVIE_URL   = 'http://plexmovie.plexapp.com'
 
 SCORE_THRESHOLD_IGNORE         = 85
 SCORE_THRESHOLD_IGNORE_PENALTY = 100 - SCORE_THRESHOLD_IGNORE
@@ -100,7 +101,7 @@ class PlexMovieAgent(Agent.Movies):
         if part.plexHash: plexHashes.append(part.plexHash)
     for ph in plexHashes: 
       try:
-        url = '%s/movie/hash/%s/%s.xml' % (FREEBASE_URL, ph[0:2], ph)
+        url = '%s/movie/hash/%s/%s.xml' % (PLEXMOVIE_URL, ph[0:2], ph)
         Log("checking plexhash search vector: %s" % url)
         res = XML.ElementFromURL(url)
         for match in res.xpath('//match'):
@@ -148,7 +149,7 @@ class PlexMovieAgent(Agent.Movies):
         Log("freebase/proxy plexHash lookup failed: %s" % repr(e))
 
     # title|year search vector
-    url = '%s/movie/guid/%s/%s.xml' % (FREEBASE_URL, titleyear_guid[0:2], titleyear_guid)
+    url = '%s/movie/guid/%s/%s.xml' % (PLEXMOVIE_URL, titleyear_guid[0:2], titleyear_guid)
     Log("checking title|year search vector: %s" % url)
     try:
       res = XML.ElementFromURL(url)
