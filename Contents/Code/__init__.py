@@ -60,7 +60,7 @@ class PlexMovieAgent(Agent.Movies):
     
     return []
   
-  def search(self, results, media, lang):
+  def search(self, results, media, lang, manual=False):
     
     # Keep track of best name.
     idMap = {}
@@ -112,7 +112,8 @@ class PlexMovieAgent(Agent.Movies):
           pct      = float(match.get('percentage',0))/100
           bonus    = int(PERCENTAGE_BONUS_MAX*pct)
 
-          bestNameMap[id] = imdbName 
+          if not bestNameMap.has_key(id):
+            bestNameMap[id] = imdbName
 
           scorePenalty = 0
           scorePenalty += -1*bonus
@@ -134,7 +135,6 @@ class PlexMovieAgent(Agent.Movies):
           elif media.year and imdbYear and int(media.year) != int(imdbYear):
             scorePenalty += -5
   
-
           Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
 
           if (score - scorePenalty) > bestCacheHitScore:
@@ -197,9 +197,8 @@ class PlexMovieAgent(Agent.Movies):
     except Exception, e:
       Log("freebase/proxy guid lookup failed: %s" % repr(e))
 
-
     doGoogleSearch = False
-    if len(results) == 0 or bestCacheHitScore < SCORE_THRESHOLD_IGNORE:
+    if len(results) == 0 or bestCacheHitScore < SCORE_THRESHOLD_IGNORE or manual == True:
       doGoogleSearch = True
 
     Log("PLEXMOVIE INFO RETRIEVAL: FINDBYID: %s CACHE: %s SEARCH_ENGINE: %s" % (findByIdCalled, cacheConsulted, doGoogleSearch))
