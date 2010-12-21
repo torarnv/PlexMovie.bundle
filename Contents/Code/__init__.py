@@ -104,7 +104,7 @@ class PlexMovieAgent(Agent.Movies):
       try:
         url = '%s/movie/hash/%s/%s.xml' % (PLEXMOVIE_URL, ph[0:2], ph)
         Log("checking plexhash search vector: %s" % url)
-        res = XML.ElementFromURL(url)
+        res = XML.ElementFromURL(url, cacheTime=60)
         for match in res.xpath('//match'):
           id       = "tt%s" % match.get('guid')
           imdbName = match.get('title')
@@ -153,7 +153,7 @@ class PlexMovieAgent(Agent.Movies):
     url = '%s/movie/guid/%s/%s.xml' % (PLEXMOVIE_URL, titleyear_guid[0:2], titleyear_guid)
     Log("checking title|year search vector: %s" % url)
     try:
-      res = XML.ElementFromURL(url)
+      res = XML.ElementFromURL(url, cacheTime=60)
       for match in res.xpath('//match'):
         id       = "tt%s" % match.get('guid')
 
@@ -358,7 +358,7 @@ class PlexMovieAgent(Agent.Movies):
     url = '%s/movies/%s/%s.xml' % (FREEBASE_URL, guid[-2:], guid)
 
     try:
-      movie = XML.ElementFromURL(url)
+      movie = XML.ElementFromURL(url, cacheTime=3600)
 
       # Runtime.
       if int(movie.get('runtime')) > 0:
