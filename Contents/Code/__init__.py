@@ -482,6 +482,11 @@ def parseIMDBTitle(title, url):
       ## always wrong
       return None
 
+    if lastPathPart == 'videogallery':
+      ## titles on these parse fine but are almost
+      ## always wrong
+      return None
+
     # parse the imdbId
     m = re.search('/(tt[0-9]+)/?', path)
     imdbId = m.groups(1)[0]
