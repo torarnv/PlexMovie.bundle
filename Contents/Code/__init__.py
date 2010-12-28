@@ -114,8 +114,10 @@ class PlexMovieAgent(Agent.Movies):
           pct      = float(match.get('percentage',0))/100
           bonus    = int(PERCENTAGE_BONUS_MAX*pct)
 
-          if not bestNameMap.has_key(id):
+          distance = Util.LevenshteinDistance(media.name, imdbName)
+          if not bestNameMap.has_key(id) or distance < bestNameDist:
             bestNameMap[id] = imdbName
+            bestNameDist = distance
 
           scorePenalty = 0
           scorePenalty += -1*bonus
@@ -160,7 +162,10 @@ class PlexMovieAgent(Agent.Movies):
         id       = "tt%s" % match.get('guid')
 
         imdbName = match.get('title')
-        bestNameMap[id] = imdbName 
+        distance = Util.LevenshteinDistance(media.name, imdbName)
+        if not bestNameMap.has_key(id) or distance < bestNameDist:
+          bestNameMap[id] = imdbName
+          bestNameDist = distance
 
         imdbYear = match.get('year')
         pct      = float(match.get('percentage',0))/100
