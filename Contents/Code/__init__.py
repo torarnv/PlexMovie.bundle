@@ -256,17 +256,29 @@ class PlexMovieAgent(Agent.Movies):
             scorePenalty = 0
             url = r['unescapedUrl'].lower().replace('us.vdc','www').replace('title?','title/tt') #massage some of the weird url's google has
 
-            # strip trailing slash(es)
-            url = re.sub(r"/+$","",url)
-            splitUrl = url.split('/')
+            (uscheme, uhost, upath, uparams, uquery, ufragment) = urlparse.urlparse(url)
+            # strip trailing and leading slashes
+            upath     = re.sub(r"/+$","",upath)
+            upath     = re.sub(r"^/+","",upath)
+            splitUrl  = upath.split("/")
 
             if splitUrl[-1] != imdbId:
               # This is the case where it is not just a link to the main imdb title page, but to a subpage. 
               # In some odd cases, google is a bit off so let's include these with lower scores "just in case".
               #
               Log(imdbName + " penalizing for not having imdb at the end of url")
-              scorePenalty = 10
+              scorePenalty += 10
               del splitUrl[-1]
+
+            if splitUrl[0] != 'title':
+              # if the first part of the url is not the /title/... part, then
+              # rank this down (eg www.imdb.com/r/tt_header_moreatpro/title/...)
+              Log(imdbName + " penalizing for not starting with title")
+              scorePenalty += 10
+
+            if splitUrl[0] == 'r':
+              Log(imdbName + " wierd redirect url skipping")
+              continue
      
             for urlPart in reversed(splitUrl):  
               if urlPart == imdbId:
