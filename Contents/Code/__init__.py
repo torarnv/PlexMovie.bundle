@@ -1,4 +1,4 @@
-import datetime, re, time, unicodedata, hashlib
+import datetime, re, time, unicodedata, hashlib, urlparse
 
 # [might want to look into language/country stuff at some point] 
 # param info here: http://code.google.com/apis/ajaxsearch/documentation/reference.html
@@ -210,6 +210,8 @@ class PlexMovieAgent(Agent.Movies):
       GOOGLE_JSON_NOSITE = GOOGLE_JSON_URL % (self.getPublicIP(), String.Quote(normalizedName + searchYear, usePlus=True)) + '+imdb.com'
       
       subsequentSearchPenalty = 0
+
+      notMovies = {}
       
       for s in [GOOGLE_JSON_QUOTES, GOOGLE_JSON_NOQUOTES]:
         if s == GOOGLE_JSON_QUOTES and (media.name.count(' ') == 0 or media.name.count('&') > 0 or media.name.count(' and ') > 0):
@@ -226,103 +228,111 @@ class PlexMovieAgent(Agent.Movies):
           # Make sure we have results and normalize them.
           jsonObj = self.getGoogleResults(s)
             
-          # Now walk through the results.    
+          # Now walk through the results and gather information from title/url
+          considerations = []
           for r in jsonObj:
             
             # Get data.
             url = r['unescapedUrl']
             title = r['titleNoFormatting']
-            
-            # Parse the name and year.
-            imdbName, imdbYear = self.parseTitle(title)
-            if not imdbName:
+
+            titleInfo = parseIMDBTitle(title,url)
+            if titleInfo is None:
               # Doesn't match, let's skip it.
               Log("Skipping strange title: " + title + " with URL " + url)
               continue
-            else:
-              Log("Using [%s] derived from [%s] (url=%s)" % (imdbName, title, url))
+
+            imdbName = titleInfo['title']
+            imdbYear = titleInfo['year']
+            imdbId   = titleInfo['imdbId']
+
+            if titleInfo['type'] != 'movie':
+              notMovies[imdbId] = True
+              Log("Title does not look like a movie: " + title + " : " + url)
+              continue
+
+            Log("Using [%s (%s)] derived from [%s] (url=%s)" % (imdbName, imdbYear, title, url))
               
             scorePenalty = 0
             url = r['unescapedUrl'].lower().replace('us.vdc','www').replace('title?','title/tt') #massage some of the weird url's google has
-            if url[-1:] == '/':
-              url = url[:-1]
-      
+
+            # strip trailing slash(es)
+            url = re.sub(r"/+$","",url)
             splitUrl = url.split('/')
-      
-            if len(splitUrl) == 6 and re.match('tt[0-9]+', splitUrl[-2]) is not None:
-              
+
+            if splitUrl[-1] != imdbId:
               # This is the case where it is not just a link to the main imdb title page, but to a subpage. 
               # In some odd cases, google is a bit off so let's include these with lower scores "just in case".
               #
+              Log(imdbName + " penalizing for not having imdb at the end of url")
               scorePenalty = 10
               del splitUrl[-1]
-      
-            if len(splitUrl) > 5 and re.match('tt[0-9]+', splitUrl[-1]) is not None:
-              while len(splitUrl) > 5:
-                del splitUrl[-2]
+     
+            for urlPart in reversed(splitUrl):  
+              if urlPart == imdbId:
+                break
+              Log(imdbName + " penalizing for not at imdbid in url yet")
               scorePenalty += 5
   
-            if len(splitUrl) == 5 and re.match('tt[0-9]+', splitUrl[-1]) is not None:
+            id = imdbId
+            if id.count('+') > 0:
+              # Penalizing for abnormal tt link.
+              scorePenalty += 10
+            try:
+              # Keep the closest name around.
+              distance = Util.LevenshteinDistance(media.name, imdbName)
+              if not bestNameMap.has_key(id) or distance < bestNameDist:
+                bestNameMap[id] = imdbName
+                bestNameDist = distance
               
-              id = splitUrl[-1]
-              if id.count('+') > 0:
-                # Penalizing for abnormal tt link.
-                scorePenalty += 10
-              try:
+              # Don't process for the same ID more than once.
+              if idMap.has_key(id):
+                continue
                 
-                # Keep the closest name around.
-                distance = Util.LevenshteinDistance(media.name, imdbName)
-                if not bestNameMap.has_key(id) or distance < bestNameDist:
-                  bestNameMap[id] = imdbName
-                  bestNameDist = distance
-                
-                # Don't process for the same ID more than once.
-                if idMap.has_key(id):
-                  continue
+              # Check to see if the item's release year is in the future, if so penalize.
+              if imdbYear > datetime.datetime.now().year:
+                Log(imdbName + ' penalizing for future release date')
+                scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
+            
+              # Check to see if the hinted year is different from imdb's year, if so penalize.
+              elif media.year and imdbYear and int(media.year) != int(imdbYear): 
+                Log(imdbName + ' penalizing for hint year and imdb year being different')
+                yearDiff = abs(int(media.year)-(int(imdbYear)))
+                if yearDiff == 1:
+                  scorePenalty += 5
+                elif yearDiff == 2:
+                  scorePenalty += 10
+                else:
+                  scorePenalty += 15
                   
-                # Check to see if the item's release year is in the future, if so penalize.
-                if imdbYear > datetime.datetime.now().year:
-                  Log(imdbName + ' penalizing for future release date')
-                  scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
+              # Bonus (or negatively penalize) for year match.
+              elif media.year and imdbYear and int(media.year) != int(imdbYear): 
+                Log(imdbName + ' bonus for matching year')
+                scorePenalty += -5
               
-                # Check to see if the hinted year is different from imdb's year, if so penalize.
-                elif media.year and imdbYear and int(media.year) != int(imdbYear): 
-                  Log(imdbName + ' penalizing for hint year and imdb year being different')
-                  yearDiff = abs(int(media.year)-(int(imdbYear)))
-                  if yearDiff == 1:
-                    scorePenalty += 5
-                  elif yearDiff == 2:
-                    scorePenalty += 10
-                  else:
-                    scorePenalty += 15
-                    
-                # Bonus (or negatively penalize) for year match.
-                elif media.year and imdbYear and int(media.year) != int(imdbYear): 
-                  scorePenalty += -5
-                
-                # It's a video game, run away!
-                if title.count('(VG)') > 0:
-                  break
-                  
-                # It's a TV series, don't use it.
-                if title.count('(TV series)') > 0:
-                  Log(imdbName + ' penalizing for TV series')
-                  scorePenalty += 6
+              # Sanity check to make sure we have SOME common substring.
+              longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
               
-                # Sanity check to make sure we have SOME common substring.
-                longestCommonSubstring = len(Util.LongestCommonSubstring(media.name.lower(), imdbName.lower()))
-                
-                # If we don't have at least 10% in common, then penalize below the 80 point threshold
-                if (float(longestCommonSubstring) / len(media.name)) < SCORE_THRESHOLD_IGNORE_PCT: 
-                  scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
-                
-                # Finally, add the result.
-                idMap[id] = True
-                Log("score = %d" % (score - scorePenalty + subsequentSearchPenalty))
-                results.Append(MetadataSearchResult(id = id, name  = imdbName, year = imdbYear, lang  = lang, score = score - (scorePenalty + subsequentSearchPenalty)))
-              except:
-                Log('Exception processing IMDB Result')
-                pass
+              # If we don't have at least 10% in common, then penalize below the 80 point threshold
+              if (float(longestCommonSubstring) / len(media.name)) < SCORE_THRESHOLD_IGNORE_PCT: 
+                Log(imdbName + ' terrible subtring match. skipping')
+                scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
+              
+              # Finally, add the result.
+              idMap[id] = True
+              Log("score = %d" % (score - scorePenalty - subsequentSearchPenalty))
+              titleInfo['score'] = score - scorePenalty - subsequentSearchPenalty
+              considerations.append( titleInfo )
+            except:
+              Log('Exception processing IMDB Result')
+              pass
+            
+            for c in considerations:
+              if notMovies.has_key(c['imdbId']):
+                Log("IMDBID %s was marked at one point as not a movie. skipping" % c['imdbId'])
+                continue
+
+              results.Append(MetadataSearchResult(id = c['imdbId'], name  = c['title'], year = c['year'], lang  = lang, score = c['score']))
            
             # Each search entry is worth less, but we subtract even if we don't use the entry...might need some thought.
             score = score - 4 
@@ -345,6 +355,7 @@ class PlexMovieAgent(Agent.Movies):
 
     # Make sure we're using the closest names.
     for result in results:
+      Log("id=%s score=%s -> Best name being changed from %s to %s" % (result.id, result.score, result.name, bestNameMap[result.id]))
       result.name = bestNameMap[result.id]
       
   def update(self, metadata, media, lang):
@@ -445,34 +456,96 @@ class PlexMovieAgent(Agent.Movies):
     
     return (None, None)
 
-  def parseTitle(self, title):
+def parseIMDBTitle(title, url):
+
+  titleLc = title.lower()
+
+  result = {
+    'title':  None,
+    'year':   None,
+    'type':   'movie',
+    'imdbId': None,
+  }
+
+  try:
+    (scheme, host, path, params, query, fragment) = urlparse.urlparse(url)
+    path      = re.sub(r"/+$","",path)
+    pathParts = path.split("/")
+    lastPathPart = pathParts[-1]
+
+    if host.count('imdb.') == 0:
+      ## imdb is not in the server.. bail
+      return None
+
+    if lastPathPart == 'quotes':
+      ## titles on these parse fine but are almost
+      ## always wrong
+      return None
+
+    # parse the imdbId
+    m = re.search('/(tt[0-9]+)/?', path)
+    imdbId = m.groups(1)[0]
+    result['imdbId'] = imdbId
+
+    ## hints in the title
+    if titleLc.count("(tv series") > 0:
+      result['type'] = 'tvseries'
+    elif titleLc.endswith("episode list"):
+      result['type'] = 'tvseries'
+    elif titleLc.count("(tv episode") > 0:
+      result['type'] = 'tvepisode'
+    elif titleLc.count("(vg)") > 0:
+      result['type'] = 'videogame'
+    elif titleLc.count("(video game") > 0:
+      result['type'] = 'videogame'
+
+    # NOTE: it seems that titles of the form
+    # (TV 2008) are made for TV movies and not
+    # regular TV series... I think we should
+    # let these through as "movies" as it includes
+    # stand up commedians, concerts, etc
+
+    # NOTE: titles of the form (Video 2009) seem
+    # to be straight to video/dvd releases
+    # these should also be kept intact
+  
+    # hints in the url
+    if lastPathPart == 'episodes':
+      result['type'] = 'tvseries'
+
     # Parse out title, year, and extra.
-    titleRx = '(.*) \(([^0-9]+ )?([0-9]+)(/.*)?\).*'
+    titleRx = '(.*) \(([^0-9]+ )?([0-9]+)(/.*)?.*?\).*'
     m = re.match(titleRx, title)
     if m:
       # A bit more processing for the name.
-      imdbName = self.cleanupName(m.groups()[0])
-      imdbYear = int(m.groups()[2])
-      return (imdbName, imdbYear)
+      result['title'] = cleanupIMDBName(m.groups()[0])
+      result['year'] = int(m.groups()[2])
       
-    longTitleRx = '(.*\.\.\.)'
-    m = re.match(longTitleRx, title)
-    if m:
-      imdbName = self.cleanupName(m.groups(1)[0])
-      return (imdbName, None)
-    
-    return (None, None)
-    
-  def cleanupName(self, s):
-    imdbName = re.sub('^[iI][mM][dD][bB][ ]*:[ ]*', '', s)
-    imdbName = re.sub('^details - ', '', imdbName)
-    imdbName = re.sub('(.*:: )+', '', imdbName)
-    imdbName = HTML.ElementFromString(imdbName).text
-    
-    if imdbName:
-      if imdbName[0] == '"' and imdbName[-1] == '"':
-        imdbName = imdbName[1:-1]
-      return imdbName
-    
+    else:
+      longTitleRx = '(.*\.\.\.)'
+      m = re.match(longTitleRx, title)
+      if m:
+        result['title'] = cleanupIMDBName(m.groups(1)[0])
+        result['year']  = None
+
+    if result['title'] is None:
+      return None
+
+    return result
+  except:
     return None
+ 
+def cleanupIMDBName(s):
+  imdbName = re.sub('^[iI][mM][dD][bB][ ]*:[ ]*', '', s)
+  imdbName = re.sub('^details - ', '', imdbName)
+  imdbName = re.sub('(.*:: )+', '', imdbName)
+  imdbName = HTML.ElementFromString(imdbName).text
+
+  if imdbName:
+    if imdbName[0] == '"' and imdbName[-1] == '"':
+      imdbName = imdbName[1:-1]
+    return imdbName
+
+  return None
+
     
