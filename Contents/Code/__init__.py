@@ -89,7 +89,7 @@ class PlexMovieAgent(Agent.Movies):
       searchYear = ''
 
     # first look in the proxy/cache 
-    titleyear_guid = self.titleyear_guid(media.name,searchYear)
+    titleyear_guid = self.titleyear_guid(media.name,media.year)
 
     bestCacheHitScore = 0
     cacheConsulted = False
