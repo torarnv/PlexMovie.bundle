@@ -231,7 +231,7 @@ class PlexMovieAgent(Agent.Movies):
   
         # Check to see if we need to bother running the subsequent searches
         Log("We have %d results" % len(results))
-        if len(results) < 3:
+        if len(results) < 3 or manual == True:
           score = 99
           
           # Make sure we have results and normalize them.
