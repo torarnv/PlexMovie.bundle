@@ -86,12 +86,12 @@ class PlexMovieAgent(Agent.Movies):
         bestNameMap[theGuid] = title
           
     if media.year:
-      searchYear = ' (' + str(media.year) + ')'
+      searchYear = u' (' + unicode(str(media.year),'utf-8') + u')'
     else:
-      searchYear = ''
+      searchYear = u''
 
     # first look in the proxy/cache 
-    titleyear_guid = self.titleyear_guid(media.name,media.year)
+    titleyear_guid = self.titleyear_guid(media.name.decode('utf-8'),media.year.decode('utf-8'))
 
     bestCacheHitScore = 0
     cacheConsulted = False
@@ -109,12 +109,13 @@ class PlexMovieAgent(Agent.Movies):
         res = XML.ElementFromURL(url, cacheTime=60)
         for match in res.xpath('//match'):
           id       = "tt%s" % match.get('guid')
-          imdbName = match.get('title')
-          imdbYear = match.get('year')
+          imdbName = match.get('title').decode('utf-8')
+          imdbYear = match.get('year').decode('utf-8')
           pct      = float(match.get('percentage',0))/100
           bonus    = int(PERCENTAGE_BONUS_MAX*pct)
 
-          distance = Util.LevenshteinDistance(media.name, imdbName)
+          distance = Util.LevenshteinDistance(media.name, imdbName.encode('utf-8'))
+          Log("distance: %s" % distance)
           if not bestNameMap.has_key(id) or distance < bestNameDist:
             bestNameMap[id] = imdbName
             bestNameDist = distance
@@ -161,13 +162,14 @@ class PlexMovieAgent(Agent.Movies):
       for match in res.xpath('//match'):
         id       = "tt%s" % match.get('guid')
 
-        imdbName = match.get('title')
-        distance = Util.LevenshteinDistance(media.name, imdbName)
+        imdbName = match.get('title').decode('utf-8')
+        distance = Util.LevenshteinDistance(media.name, imdbName.encode('utf-8'))
+        Log("distance: %s" % distance)
         if not bestNameMap.has_key(id) or distance < bestNameDist:
           bestNameMap[id] = imdbName
           bestNameDist = distance
 
-        imdbYear = match.get('year')
+        imdbYear = match.get('year').decode('utf-8')
         pct      = float(match.get('percentage',0))/100
         bonus    = int(PERCENTAGE_BONUS_MAX*pct)
 
@@ -240,8 +242,8 @@ class PlexMovieAgent(Agent.Movies):
           for r in jsonObj:
             
             # Get data.
-            url = r['unescapedUrl']
-            title = r['titleNoFormatting']
+            url = r['unescapedUrl'].decode('utf-8')
+            title = r['titleNoFormatting'].decode('utf-8')
 
             titleInfo = parseIMDBTitle(title,url)
             if titleInfo is None:
@@ -299,8 +301,9 @@ class PlexMovieAgent(Agent.Movies):
               scorePenalty += 10
             try:
               # Keep the closest name around.
-              distance = Util.LevenshteinDistance(media.name, imdbName)
-              if not bestNameMap.has_key(id) or distance < bestNameDist:
+              distance = Util.LevenshteinDistance(media.name, imdbName.encode('utf-8'))
+              Log("distance: %s" % distance)
+              if not bestNameMap.has_key(id) or distance <= bestNameDist:
                 bestNameMap[id] = imdbName
                 bestNameDist = distance
               
@@ -466,10 +469,10 @@ class PlexMovieAgent(Agent.Movies):
 
   def findById(self, id):
     jsonObj = self.getGoogleResults(GOOGLE_JSON_URL % (self.getPublicIP(), id))
-    
+
     try:
-      (title, year) = self.parseTitle(jsonObj[0]['titleNoFormatting'])
-      return (title, year)
+      (title, year) = parseIMDBTitle(jsonObj[0]['titleNoFormatting'],jsonObj[0]['unescapedUrl'])
+      return (title.decode('utf-8'), year.decode('utf-8'))
     except:
       pass
     
