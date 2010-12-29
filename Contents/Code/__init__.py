@@ -1,4 +1,4 @@
-import datetime, re, time, unicodedata, hashlib, urlparse
+import datetime, re, time, unicodedata, hashlib, urlparse, types
 
 # [might want to look into language/country stuff at some point] 
 # param info here: http://code.google.com/apis/ajaxsearch/documentation/reference.html
@@ -25,7 +25,7 @@ class PlexMovieAgent(Agent.Movies):
 
   def identifierize(self, string):
       string = re.sub( r"\s+", " ", string.strip())
-      string = unicodedata.normalize('NFKD', unicode(string))
+      string = unicodedata.normalize('NFKD', safe_unicode(string))
       string = re.sub(r"['\"!?@#$&%^*\(\)_+\.,;:/]","", string)
       string = re.sub(r"[_ ]+","_", string)
       string = string.strip('_')
@@ -86,12 +86,12 @@ class PlexMovieAgent(Agent.Movies):
         bestNameMap[theGuid] = title
           
     if media.year:
-      searchYear = u' (' + unicode(str(media.year),'utf-8') + u')'
+      searchYear = u' (' + safe_unicode(media.year) + u')'
     else:
       searchYear = u''
 
     # first look in the proxy/cache 
-    titleyear_guid = self.titleyear_guid(media.name.decode('utf-8'),media.year.decode('utf-8'))
+    titleyear_guid = self.titleyear_guid(media.name,media.year)
 
     bestCacheHitScore = 0
     cacheConsulted = False
@@ -109,8 +109,8 @@ class PlexMovieAgent(Agent.Movies):
         res = XML.ElementFromURL(url, cacheTime=60)
         for match in res.xpath('//match'):
           id       = "tt%s" % match.get('guid')
-          imdbName = match.get('title').decode('utf-8')
-          imdbYear = match.get('year').decode('utf-8')
+          imdbName = safe_unicode(match.get('title'))
+          imdbYear = safe_unicode(match.get('year'))
           pct      = float(match.get('percentage',0))/100
           bonus    = int(PERCENTAGE_BONUS_MAX*pct)
 
@@ -162,14 +162,14 @@ class PlexMovieAgent(Agent.Movies):
       for match in res.xpath('//match'):
         id       = "tt%s" % match.get('guid')
 
-        imdbName = match.get('title').decode('utf-8')
+        imdbName = safe_unicode(match.get('title'))
         distance = Util.LevenshteinDistance(media.name, imdbName.encode('utf-8'))
         Log("distance: %s" % distance)
         if not bestNameMap.has_key(id) or distance < bestNameDist:
           bestNameMap[id] = imdbName
           bestNameDist = distance
 
-        imdbYear = match.get('year').decode('utf-8')
+        imdbYear = safe_unicode(match.get('year'))
         pct      = float(match.get('percentage',0))/100
         bonus    = int(PERCENTAGE_BONUS_MAX*pct)
 
@@ -242,8 +242,8 @@ class PlexMovieAgent(Agent.Movies):
           for r in jsonObj:
             
             # Get data.
-            url = r['unescapedUrl'].decode('utf-8')
-            title = r['titleNoFormatting'].decode('utf-8')
+            url = safe_unicode(r['unescapedUrl'])
+            title = safe_unicode(r['titleNoFormatting'])
 
             titleInfo = parseIMDBTitle(title,url)
             if titleInfo is None:
@@ -472,7 +472,7 @@ class PlexMovieAgent(Agent.Movies):
 
     try:
       (title, year) = parseIMDBTitle(jsonObj[0]['titleNoFormatting'],jsonObj[0]['unescapedUrl'])
-      return (title.decode('utf-8'), year.decode('utf-8'))
+      return (safe_unicode(title), safe_unicode(year))
     except:
       pass
     
@@ -575,4 +575,13 @@ def cleanupIMDBName(s):
 
   return None
 
-    
+def safe_unicode(s,encoding='utf-8'):
+  if s is None:
+    return None
+  if isinstance(s, basestring):
+    if isinstance(s, types.UnicodeType):
+      return s
+    else:
+      return s.decode(encoding)
+  else:
+    return str(s).decode(encoding)
