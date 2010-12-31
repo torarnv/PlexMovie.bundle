@@ -99,9 +99,15 @@ class PlexMovieAgent(Agent.Movies):
     # plexhash search vector
     plexHashes = []
     score = 100
-    for item in media.items:
-      for part in item.parts:
-        if part.plexHash: plexHashes.append(part.plexHash)
+    
+    try:
+      for item in media.items:
+        for part in item.parts:
+          if part.plexHash: plexHashes.append(part.plexHash)
+    except:
+      try: plexHashes.append(media.plexHash)
+      except: pass
+        
     for ph in plexHashes: 
       try:
         url = '%s/%s/hash/%s/%s.xml' % (PLEXMOVIE_URL, PLEXMOVIE_BASE, ph[0:2], ph)
@@ -111,8 +117,9 @@ class PlexMovieAgent(Agent.Movies):
           id       = "tt%s" % match.get('guid')
           imdbName = safe_unicode(match.get('title'))
           imdbYear = safe_unicode(match.get('year'))
+          count    = int(match.get('count'))
           pct      = float(match.get('percentage',0))/100
-          bonus    = int(PERCENTAGE_BONUS_MAX*pct)
+          bonus    = - (PERCENTAGE_BONUS_MAX - int(PERCENTAGE_BONUS_MAX*pct))
 
           distance = Util.LevenshteinDistance(media.name, imdbName.encode('utf-8'))
           Log("distance: %s" % distance)
@@ -122,6 +129,10 @@ class PlexMovieAgent(Agent.Movies):
 
           scorePenalty = 0
           scorePenalty += -1*bonus
+
+          # We are going to penalize for distance from name.
+          scorePenalty += distance
+
           if int(imdbYear) > datetime.datetime.now().year:
             Log(imdbName + ' penalizing for future release date')
             scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
@@ -168,13 +179,15 @@ class PlexMovieAgent(Agent.Movies):
         if not bestNameMap.has_key(id) or distance < bestNameDist:
           bestNameMap[id] = imdbName
           bestNameDist = distance
-
+          
         imdbYear = safe_unicode(match.get('year'))
+        count    = int(match.get('count'))
         pct      = float(match.get('percentage',0))/100
-        bonus    = int(PERCENTAGE_BONUS_MAX*pct)
+        bonus    = - (PERCENTAGE_BONUS_MAX - int(PERCENTAGE_BONUS_MAX*pct))
 
         scorePenalty = 0
         scorePenalty += -1*bonus
+
         if int(imdbYear) > datetime.datetime.now().year:
           Log(imdbName + ' penalizing for future release date')
           scorePenalty += SCORE_THRESHOLD_IGNORE_PENALTY 
@@ -193,7 +206,6 @@ class PlexMovieAgent(Agent.Movies):
         elif media.year and imdbYear and int(media.year) != int(imdbYear):
           scorePenalty += -5
 
-
         Log("score penalty (used to determine if google is needed) = %d" % scorePenalty)
 
         if (score - scorePenalty) > bestCacheHitScore:
@@ -207,7 +219,7 @@ class PlexMovieAgent(Agent.Movies):
       Log("freebase/proxy guid lookup failed: %s" % repr(e))
 
     doGoogleSearch = False
-    if len(results) == 0 or bestCacheHitScore < SCORE_THRESHOLD_IGNORE or manual == True:
+    if len(results) == 0 or bestCacheHitScore < SCORE_THRESHOLD_IGNORE or manual == True or (bestCacheHitScore < 100 and len(results) == 1):
       doGoogleSearch = True
 
     Log("PLEXMOVIE INFO RETRIEVAL: FINDBYID: %s CACHE: %s SEARCH_ENGINE: %s" % (findByIdCalled, cacheConsulted, doGoogleSearch))
