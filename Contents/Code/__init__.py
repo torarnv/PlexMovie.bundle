@@ -468,6 +468,16 @@ class PlexMovieAgent(Agent.Movies):
 
         if len(elements) == 3:
           metadata.originally_available_at = Datetime.ParseDate(movie.get('originally_available_at')).date()
+          
+      # Country.
+      try:
+        metadata.countries.clear()
+        if movie.get('country'):
+          country = movie.get('country')
+          country = country.replace('United States of America', 'USA')
+          metadata.countries.add(country)
+      except:
+        pass
       
     except:
       print "Error obtaining Plex movie data for", guid
