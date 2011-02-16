@@ -395,7 +395,10 @@ class PlexMovieAgent(Agent.Movies):
   def update(self, metadata, media, lang):
 
     # Set the title. FIXME, this won't work after a queued restart.
-    if media:
+    # Only do this once, otherwise we'll pull new names that get edited 
+    # out of the database.
+    #
+    if media and metadata.title is None:
       metadata.title = media.title
 
     # Hit our repository.
